@@ -4,6 +4,7 @@ import "./globals.css";
 import { BatchProvider } from "./vars/isBatch";
 import { NumFilesProvider } from './vars/numFiles';
 import { AppThemeProvider } from "./lib/ThemeProvider";
+import { FilesProvider } from "./vars/files";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +36,9 @@ export default function RootLayout({
         <AppThemeProvider>
           <BatchProvider>
             <NumFilesProvider>
-              {children}
+              <FilesProvider>
+                {children}
+              </FilesProvider>
             </NumFilesProvider>
           </BatchProvider>
         </AppThemeProvider>

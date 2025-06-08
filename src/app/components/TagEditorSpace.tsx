@@ -8,7 +8,7 @@ export default function TagEditorSpace() {
     return (
         <div className="flex flex-col h-full">
             <Toolbar />
-            <div className="my-4" />
+            <div className="my-2" />
             {loading ? (
             <TagEditorSkele />
             ) : (
