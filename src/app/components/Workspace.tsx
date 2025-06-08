@@ -4,7 +4,7 @@ import * as React from 'react';
 import OptionsColumn from './OptionsColumn';
 import InputOption from './InputOption';
 import UploadFile from './UploadFile';
-import TagEditor from './TagEditor';
+import TagEditorSpace from './TagEditorSpace';
 
 export default function Workspace() {
     return (
@@ -15,7 +15,7 @@ export default function Workspace() {
                     <OptionsColumn />
                 </div>
                 <div className="flex-1 p-6 md:p-8 flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
-                    <TagEditor />
+                    <TagEditorSpace />
                 </div>
             </div>
         </div>

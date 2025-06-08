@@ -12,7 +12,7 @@ export default function YouTubeUrl() {
             <TextField
                 value={youtubeLink}
                 onChange={(e) => setYoutubeLink(e.target.value)}
-                placeholder="Paste YouTube URL here..."
+                placeholder="YouTube URL"
                 variant="outlined"
                 size="medium"
                 fullWidth

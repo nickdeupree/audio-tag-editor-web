@@ -12,7 +12,7 @@ export default function SoundCloudUrl() {
             <TextField
                 value={soundcloudLink}
                 onChange={(e) => setSoundcloudLink(e.target.value)}
-                placeholder="Paste SoundCloud URL here..."
+                placeholder="SoundCloud URL"
                 variant="outlined"
                 size="medium"
                 fullWidth

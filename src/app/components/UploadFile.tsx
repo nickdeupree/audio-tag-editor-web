@@ -1,7 +1,9 @@
 import React from 'react';
 import { Button, Typography, Box } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import UploadIcon from '@mui/icons-material/Upload';
+import { useBatch } from '../vars/isBatch';
+import { useNumFiles } from '../vars/numFiles';
 
 
 const VisuallyHiddenInput = styled('input')({
@@ -17,8 +19,10 @@ const VisuallyHiddenInput = styled('input')({
 });
 
 export default function UploadFile() {
-    const [file, setFile] = React.useState<File | null>(null);
-
+    const [files, setFiles] = React.useState<FileList | null>(null);
+    const { setIsBatch } = useBatch();
+    const { setNumFiles } = useNumFiles();
+    const [isLoading, setIsLoading] = React.useState(false);
 
     return (
         <Box className="flex flex-col items-center space-y-6 p-6">
@@ -30,14 +34,25 @@ export default function UploadFile() {
             role={undefined}
             variant="contained"
             tabIndex={-1}
-            startIcon={<CloudUploadIcon />}
+            startIcon={<UploadIcon />}
             sx={{ px: 3, py: 1 }}
+            loading={isLoading}
             >
             Upload files
             <VisuallyHiddenInput
                 type="file"
                 accept="audio/*"
-                onChange={(event) => console.log(event.target.files)}
+                onChange={(event) => {
+                    setIsLoading(true);
+                    const selectedFiles = event.target.files;
+                    setFiles(selectedFiles);
+                    if (selectedFiles && selectedFiles.length > 1) {
+                        setIsBatch(true);
+                        setNumFiles(selectedFiles.length);
+                    }
+                    setIsLoading(false);
+
+                }}
                 multiple
                 sx={{px: 3, py: 1 }}
             />
