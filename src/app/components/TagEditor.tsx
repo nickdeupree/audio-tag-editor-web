@@ -35,12 +35,14 @@ export default function TagEditor() {
     const [updatedFilename, setUpdatedFilename] = useState<string | null>(null);
     const [coverArtUrl, setCoverArtUrl] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [platform, setPlatform] = useState<string | null>(null);
+    const [originalUrl, setOriginalUrl] = useState<string | null>(null);
 
     // Load metadata when component mounts or when new metadata is available
     useEffect(() => {
         // Listen for metadata loaded events
         const handleMetadataLoaded = (event: CustomEvent) => {
-            const { metadata: newMetadata, filename } = event.detail;
+            const { metadata: newMetadata, filename, platform: filePlatform, originalUrl: fileOriginalUrl } = event.detail;
             setMetadata({
                 title: newMetadata.title || '',
                 artist: newMetadata.artist || '',
@@ -51,6 +53,8 @@ export default function TagEditor() {
                 cover_art_mime_type: newMetadata.cover_art_mime_type || undefined,
             });
             setCurrentFilename(filename);
+            setPlatform(filePlatform || null);
+            setOriginalUrl(fileOriginalUrl || null);
             
             // Set cover art URL if available
             if (newMetadata.cover_art && newMetadata.cover_art_mime_type) {
@@ -341,9 +345,24 @@ export default function TagEditor() {
                 ) : (
                     <Box sx={{ width: 210, height: 32 }}>
                         {currentFilename && (
-                            <Typography variant="body2" sx={{ textAlign: 'center' }}>
-                                {currentFilename}
-                            </Typography>
+                            <div>
+                                <Typography variant="body2" sx={{ textAlign: 'center' }}>
+                                    {currentFilename}
+                                </Typography>
+                                {platform && platform !== 'upload' && (
+                                    <Typography 
+                                        variant="caption" 
+                                        sx={{ 
+                                            textAlign: 'center', 
+                                            display: 'block',
+                                            color: platform === 'youtube' ? '#FF0000' : platform === 'soundcloud' ? '#ff5500' : 'inherit',
+                                            fontWeight: 'bold'
+                                        }}
+                                    >
+                                        From {platform === 'youtube' ? 'YouTube' : platform === 'soundcloud' ? 'SoundCloud' : platform}
+                                    </Typography>
+                                )}
+                            </div>
                         )}
                     </Box>
                 )
