@@ -1,17 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { TextField, Button, Typography, Box, CircularProgress } from '@mui/material';
-import { useFiles } from '../vars/files';
-import { useAllFilesMetadata } from '../vars/allFilesMetadata';
-import { useNumFiles } from '../vars/numFiles';
-import { useCurrentFileIndex } from '../vars/currentFileIndex';
 
 export default function SoundCloudUrl() {
-    const [soundcloudLink, setSoundcloudLink] = useState('');
-    const [isDownloading, setIsDownloading] = useState(false);
-    const { files, setFiles } = useFiles();
-    const { allFilesMetadata, setAllFilesMetadata } = useAllFilesMetadata();
-    const { setNumFiles } = useNumFiles();
-    const { setCurrentIndex } = useCurrentFileIndex();
+    const [soundcloudLink, setSoundcloudLink] = React.useState('');
+    const [isDownloading, setIsDownloading] = React.useState(false);
 
     const handleDownload = async () => {
         if (!soundcloudLink.trim()) {
@@ -22,80 +14,43 @@ export default function SoundCloudUrl() {
         setIsDownloading(true);
         try {
             const formData = new FormData();
-            formData.append('url', soundcloudLink.trim());
+            formData.append('url', soundcloudLink);
 
-            const response = await fetch('http://localhost:8000/upload/download-from-url', {
+            const response = await fetch('http://localhost:8000/upload/download/soundcloud', {
                 method: 'POST',
-                body: formData
+                body: formData,
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Download failed');
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.detail || `HTTP ${response.status}: ${response.statusText}`);
             }
 
             const result = await response.json();
-            
-            if (result.success && result.files && result.files.length > 0) {
-                const downloadedFile = result.files[0];
+            console.log('SoundCloud download successful:', result);
+
+            if (result.success && result.metadata) {
+                // Trigger a custom event to notify TagEditor
+                window.dispatchEvent(new CustomEvent('metadataLoaded', { 
+                    detail: { 
+                        metadata: result.metadata,
+                        filename: result.filename,
+                        platform: result.platform || 'soundcloud',
+                        originalUrl: result.original_url
+                    } 
+                }));
                 
-                if (downloadedFile.success) {
-                    // Create a dummy File object for the downloaded audio
-                    const dummyFile = new File([''], downloadedFile.filename, { 
-                        type: 'audio/mpeg' 
-                    });
-                    
-                    // Add to files array
-                    const newFiles = files ? [...Array.from(files), dummyFile] : [dummyFile];
-                    
-                    // Create a FileList-like object
-                    const fileList = {
-                        ...newFiles,
-                        length: newFiles.length,
-                        item: (index: number) => newFiles[index] || null
-                    } as FileList;
-                    
-                    setFiles(fileList);
-                      // Add to metadata array
-                    const newMetadataEntry = {
-                        filename: downloadedFile.filename,
-                        metadata: downloadedFile.metadata,
-                        downloadedFrom: downloadedFile.downloaded_from,
-                        storedFilename: downloadedFile.stored_filename, // Add this for downloaded files
-                        isDownloaded: true // Flag to identify downloaded files
-                    };
-                    
-                    const newAllMetadata = [...allFilesMetadata, newMetadataEntry];
-                    setAllFilesMetadata(newAllMetadata);
-                    
-                    // Update counts and navigation
-                    setNumFiles(newFiles.length);
-                    setCurrentIndex(newFiles.length - 1); // Navigate to the new file
-                    
-                    // Clear the input
-                    setSoundcloudLink('');
-                    
-                    // Dispatch metadata loaded event for the TagEditor
-                    const event = new CustomEvent('metadataLoaded', {
-                        detail: {
-                            metadata: downloadedFile.metadata,
-                            filename: downloadedFile.filename,
-                            fileIndex: newFiles.length - 1
-                        }
-                    });
-                    window.dispatchEvent(event);
-                    
-                    alert('SoundCloud audio downloaded successfully!');
-                } else {
-                    throw new Error(downloadedFile.error || 'Download failed');
-                }
+                // Clear the input
+                setSoundcloudLink('');
+                alert('SoundCloud audio downloaded successfully!');
             } else {
-                throw new Error('No valid files were downloaded');
+                throw new Error('Download succeeded but no metadata received');
             }
-            
+
         } catch (error) {
-            console.error('Download error:', error);
-            alert(`Download failed: ${error}`);
+            console.error('SoundCloud download error:', error);
+            const errorMessage = (error instanceof Error) ? error.message : String(error);
+            alert(`Download failed: ${errorMessage}`);
         } finally {
             setIsDownloading(false);
         }
@@ -123,7 +78,6 @@ export default function SoundCloudUrl() {
                 sx={{ 
                     px: 3, 
                     py: 1,
-                    minWidth: '160px',
                     backgroundColor: '#ff5500',
                     '&:hover': {
                         backgroundColor: '#e64900'
@@ -135,7 +89,7 @@ export default function SoundCloudUrl() {
             >
                 {isDownloading ? (
                     <>
-                        <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
+                        <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} />
                         Downloading...
                     </>
                 ) : (
