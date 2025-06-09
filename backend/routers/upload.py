@@ -336,6 +336,98 @@ async def download_youtube_audio(url: str = Form(...)):
                 download_service.cleanup_download(downloaded_file_path)
             except Exception:
                 pass
+<<<<<<< HEAD
+=======
+
+@router.post("/download/soundcloud")
+async def download_soundcloud_audio(url: str = Form(...)):
+    """Download audio from SoundCloud URL and extract metadata."""
+    print(f"DEBUG: Received SoundCloud URL: {url}")
+    
+    download_service = DownloadService()
+    downloaded_file_path = None
+    
+    try:
+        # Download the audio
+        download_result = download_service.download_audio(url, output_format='mp3')
+        downloaded_file_path = download_result['file_path']
+        
+        print(f"DEBUG: Downloaded file to: {downloaded_file_path}")
+        
+        # Extract metadata using the audio service
+        audio_service = AudioService()
+        metadata = audio_service.extract_metadata(downloaded_file_path)
+        
+        # Enhance metadata with info from download
+        download_metadata = download_result['metadata']
+        if not metadata.title and download_metadata.get('title'):
+            metadata.title = download_metadata['title']
+        if not metadata.artist and download_metadata.get('artist'):
+            metadata.artist = download_metadata['artist']
+        if not metadata.album and download_metadata.get('album'):
+            metadata.album = download_metadata['album']
+        if not metadata.year and download_metadata.get('year'):
+            metadata.year = download_metadata['year']
+        if not metadata.genre and download_metadata.get('genre'):
+            metadata.genre = download_metadata['genre']
+        
+        # Create a directory to store downloaded files
+        downloaded_files_dir = "/tmp/downloaded_audio_files"
+        os.makedirs(downloaded_files_dir, exist_ok=True)
+        
+        # Store the downloaded file with a unique name
+        import time
+        timestamp = int(time.time())
+        downloaded_filename = f"soundcloud_{timestamp}_{download_result['original_title'][:50].replace('/', '_')}.mp3"
+        stored_file_path = os.path.join(downloaded_files_dir, downloaded_filename)
+        
+        # Copy the downloaded file to the storage location
+        import shutil
+        shutil.copy2(downloaded_file_path, stored_file_path)
+        
+        return AudioUploadResponse(
+            success=True,
+            filename=downloaded_filename,
+            metadata=metadata,
+            message="SoundCloud audio downloaded and metadata extracted successfully",
+            platform="soundcloud",
+            original_url=url
+        )
+        
+    except Exception as e:
+        print(f"DEBUG: Download error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error downloading SoundCloud audio: {str(e)}")
+    finally:
+        # Clean up temporary download file
+        if downloaded_file_path and os.path.exists(downloaded_file_path):
+            try:
+                download_service.cleanup_download(downloaded_file_path)
+            except Exception:
+                pass
+
+@router.get("/test-download")
+async def test_download_service():
+    """Test the download service functionality."""
+    try:
+        download_service = DownloadService()
+        test_result = download_service.test_ytdl_functionality()
+        
+        return JSONResponse(content={
+            "success": test_result['success'],
+            "message": "Download service test completed",
+            "test_result": test_result
+        })
+        
+    except Exception as e:
+        print(f"DEBUG: Test error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "message": f"Download service test failed: {str(e)}"
+            }
+        )
+>>>>>>> 0bb8875cf171e15a77a5a5f167492537a03f8dc9
 
 @router.post("/download/soundcloud")
 async def download_soundcloud_audio(url: str = Form(...)):

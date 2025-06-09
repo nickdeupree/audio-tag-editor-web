@@ -27,11 +27,6 @@ class AudioMetadata(BaseModel):
     album: Optional[str]
     year: Optional[int]
     genre: Optional[str]
-<<<<<<< HEAD
-    track: Optional[str] = None  # Track number
-    duration: Optional[float] = None  # Duration in seconds
-=======
->>>>>>> 0bb8875cf171e15a77a5a5f167492537a03f8dc9
     cover_art: Optional[str] = None  # Base64 encoded cover art
     cover_art_mime_type: Optional[str] = None  # MIME type of the cover art
 
