@@ -2,6 +2,7 @@
 Audio service for handling audio file operations.
 """
 
+import os
 import mutagen
 import mutagen.id3
 from mutagen.id3 import ID3NoHeaderError, APIC
@@ -9,6 +10,9 @@ from mutagen.mp4 import MP4Cover
 from mutagen.flac import Picture
 import base64
 from models.responses import AudioMetadata
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AudioService:
     """Service class for audio file operations."""
@@ -20,23 +24,11 @@ class AudioService:
             
             if audio_file is None:
                 raise ValueError("Unable to read audio file")
-            
-            # Extract common metadata
+              # Extract common metadata
             title = self._get_tag_value(audio_file, ['TIT2', 'TITLE', '\xa9nam']) or ""
             artist = self._get_tag_value(audio_file, ['TPE1', 'ARTIST', '\xa9ART']) or ""
             album = self._get_tag_value(audio_file, ['TALB', 'ALBUM', '\xa9alb']) or ""
-            year_str = self._get_tag_value(audio_file, ['TDRC', 'DATE', '\xa9day'])
             genre = self._get_tag_value(audio_file, ['TCON', 'GENRE', '\xa9gen']) or ""
-
-            # Convert year to integer if valid, otherwise None
-            year = None
-            if year_str:
-                try:
-                    # Extract just the year part if it's a full date
-                    year_part = year_str.split('-')[0] if '-' in year_str else year_str
-                    year = int(year_part)
-                except (ValueError, TypeError):
-                    year = None
 
             # Extract cover art
             cover_art, cover_art_mime_type = self._extract_cover_art(audio_file)
@@ -45,7 +37,6 @@ class AudioService:
                 title=title,
                 artist=artist,
                 album=album,
-                year=year,
                 genre=genre,
                 cover_art=cover_art,
                 cover_art_mime_type=cover_art_mime_type,
@@ -55,7 +46,6 @@ class AudioService:
             raise ValueError("No ID3 header found in file")
         except Exception as e:
             raise ValueError(f"Error reading audio file: {str(e)}")
-    
     def _get_tag_value(self, audio_file, tag_keys: list) -> str | None:
         """Get tag value from audio file using multiple possible keys."""
         for key in tag_keys:
@@ -67,12 +57,29 @@ class AudioService:
         return None
     
     def update_metadata(self, file_path: str, metadata: AudioMetadata) -> bool:
-        """Update metadata in an audio file."""
         try:
+            # Validate file exists and has content
+            if not os.path.exists(file_path):
+                raise ValueError("File does not exist")
+            
+            file_size = os.path.getsize(file_path)
+            if file_size == 0:
+                raise ValueError("Audio file is empty or corrupted")
+            
+            # Additional validation: try to read the file
+            try:
+                with open(file_path, 'rb') as f:
+                    # Read first few bytes to check if file is readable
+                    header = f.read(16)
+                    if len(header) == 0:
+                        raise ValueError("Audio file is empty or corrupted")
+            except Exception as e:
+                raise ValueError(f"Cannot read audio file: {str(e)}")
+
             audio_file = mutagen.File(file_path)
             
             if audio_file is None:
-                raise ValueError("Unable to read audio file")
+                raise ValueError("Unable to read audio file - it may be corrupted or in an unsupported format")
             
             # Update tags based on file type
             if hasattr(audio_file, 'tags') and audio_file.tags is not None:
@@ -83,8 +90,6 @@ class AudioService:
                     audio_file.tags['TPE1'] = mutagen.id3.TPE1(encoding=3, text=metadata.artist)
                 if metadata.album:
                     audio_file.tags['TALB'] = mutagen.id3.TALB(encoding=3, text=metadata.album)
-                if metadata.year:
-                    audio_file.tags['TDRC'] = mutagen.id3.TDRC(encoding=3, text=str(metadata.year))
                 if metadata.genre:
                     audio_file.tags['TCON'] = mutagen.id3.TCON(encoding=3, text=metadata.genre)
                 if hasattr(metadata, 'track') and metadata.track:
@@ -103,6 +108,14 @@ class AudioService:
             return True
             
         except Exception as e:
+            logger.error(f"Error updating metadata: {str(e)}")
+            # Clean up temp file if it exists and is corrupted
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    logger.debug(f"Cleaned up corrupted temp file: {file_path}")
+                except:
+                    pass
             raise ValueError(f"Error updating audio file: {str(e)}")
     
     def _update_cover_art_inline(self, audio_file, cover_art_b64: str, mime_type: str):

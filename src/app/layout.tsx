@@ -5,6 +5,8 @@ import { BatchProvider } from "./vars/isBatch";
 import { NumFilesProvider } from './vars/numFiles';
 import { AppThemeProvider } from "./lib/ThemeProvider";
 import { FilesProvider } from "./vars/files";
+import { CurrentFileIndexProvider } from "./vars/currentFileIndex";
+import { AllFilesMetadataProvider } from "./vars/allFilesMetadata";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,12 +34,15 @@ export default function RootLayout({
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <AppThemeProvider>
+      >        <AppThemeProvider>
           <BatchProvider>
             <NumFilesProvider>
               <FilesProvider>
-                {children}
+                <CurrentFileIndexProvider>
+                  <AllFilesMetadataProvider>
+                    {children}
+                  </AllFilesMetadataProvider>
+                </CurrentFileIndexProvider>
               </FilesProvider>
             </NumFilesProvider>
           </BatchProvider>

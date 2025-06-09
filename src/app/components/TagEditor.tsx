@@ -6,25 +6,16 @@ import { SIZES } from '../constants/sizes';
 import { useBatch } from '../vars/isBatch';
 import { useNumFiles } from '../vars/numFiles';
 import { useFiles } from '../vars/files';
-
-interface AudioMetadata {
-    title?: string;
-    artist?: string;
-    album?: string;
-    genre?: string;
-    year?: number;
-    track?: string;
-    duration?: number;
-    cover_art?: string;  // Base64 encoded cover art
-    cover_art_mime_type?: string;  // MIME type of the cover art
-}
+import { useAllFilesMetadata, AudioMetadata, FileMetadata } from '../vars/allFilesMetadata';
+import { useCurrentFileIndex } from '../vars/currentFileIndex';
 
 export default function TagEditor() {
     const { isBatch } = useBatch();
     const { numFiles } = useNumFiles();
     const { files } = useFiles();
-    
-    // State for form fields
+    const { allFilesMetadata, updateFileMetadata, updateAllFilesMetadata, setUpdatedFilename: setUpdatedFilenameInStore } = useAllFilesMetadata();
+    const { currentIndex, setCurrentIndex } = useCurrentFileIndex();
+      // State for form fields
     const [metadata, setMetadata] = useState<AudioMetadata>({
         title: '',
         artist: '',
@@ -35,22 +26,20 @@ export default function TagEditor() {
     const [updatedFilename, setUpdatedFilename] = useState<string | null>(null);
     const [coverArtUrl, setCoverArtUrl] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
-
-    // Load metadata when component mounts or when new metadata is available
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);// Load metadata when component mounts or when new metadata is available
     useEffect(() => {
         // Listen for metadata loaded events
         const handleMetadataLoaded = (event: CustomEvent) => {
-            const { metadata: newMetadata, filename } = event.detail;
-            setMetadata({
+            const { metadata: newMetadata, filename, fileIndex } = event.detail;            setMetadata({
                 title: newMetadata.title || '',
                 artist: newMetadata.artist || '',
                 album: newMetadata.album || '',
                 genre: newMetadata.genre || '',
-                year: newMetadata.year || undefined,
                 cover_art: newMetadata.cover_art || undefined,
                 cover_art_mime_type: newMetadata.cover_art_mime_type || undefined,
             });
             setCurrentFilename(filename);
+            setHasUnsavedChanges(false);
             
             // Set cover art URL if available
             if (newMetadata.cover_art && newMetadata.cover_art_mime_type) {
@@ -58,21 +47,86 @@ export default function TagEditor() {
             } else {
                 setCoverArtUrl(null);
             }
+
+            // Set current index if provided
+            if (typeof fileIndex === 'number') {
+                setCurrentIndex(fileIndex);
+            }
+        };        // Listen for reset editor events
+        const handleResetEditor = () => {
+            setMetadata({
+                title: '',
+                artist: '',
+                album: '',
+                genre: '',
+            });
+            setCurrentFilename('');
+            setUpdatedFilename(null);
+            setCoverArtUrl(null);
+            setHasUnsavedChanges(false);
         };
 
         window.addEventListener('metadataLoaded', handleMetadataLoaded as EventListener);
+        window.addEventListener('resetEditor', handleResetEditor as EventListener);
 
         return () => {
             window.removeEventListener('metadataLoaded', handleMetadataLoaded as EventListener);
+            window.removeEventListener('resetEditor', handleResetEditor as EventListener);
         };
-    }, []);
-
-    // Handle input changes
+    }, [setCurrentIndex]);    // Load metadata when current index changes
+    useEffect(() => {        if (allFilesMetadata.length > 0 && currentIndex < allFilesMetadata.length) {
+            const currentFileData = allFilesMetadata[currentIndex];
+            setMetadata({
+                title: currentFileData.metadata.title || '',
+                artist: currentFileData.metadata.artist || '',
+                album: currentFileData.metadata.album || '',
+                genre: currentFileData.metadata.genre || '',
+                year: currentFileData.metadata.year,
+                track: currentFileData.metadata.track,
+                duration: currentFileData.metadata.duration,
+                cover_art: currentFileData.metadata.cover_art,
+                cover_art_mime_type: currentFileData.metadata.cover_art_mime_type,
+            });
+            setCurrentFilename(currentFileData.filename);
+            setUpdatedFilename(currentFileData.updatedFilename || null);
+            setHasUnsavedChanges(false);
+            
+            // Set cover art URL if available
+            if (currentFileData.metadata.cover_art && currentFileData.metadata.cover_art_mime_type) {
+                setCoverArtUrl(`data:${currentFileData.metadata.cover_art_mime_type};base64,${currentFileData.metadata.cover_art}`);
+            } else {
+                setCoverArtUrl(null);
+            }        } else if (allFilesMetadata.length === 0) {
+            // Clear everything when no files are loaded
+            setMetadata({
+                title: '',
+                artist: '',
+                album: '',
+                genre: '',
+            });
+            setCurrentFilename('');
+            setUpdatedFilename(null);
+            setCoverArtUrl(null);
+            setHasUnsavedChanges(false);
+        }
+    }, [currentIndex, allFilesMetadata]);    // Handle input changes
     const handleInputChange = (field: keyof AudioMetadata) => (event: React.ChangeEvent<HTMLInputElement>) => {
-        setMetadata(prev => ({
-            ...prev,
-            [field]: event.target.value
-        }));
+        const newValue = event.target.value;
+        const updatedMetadata = {
+            ...metadata,
+            [field]: newValue
+        };
+        
+        setMetadata(updatedMetadata);
+        setHasUnsavedChanges(true);
+        
+        if (isBatch) {
+            // Update all files when in batch mode
+            updateAllFilesMetadata({ [field]: newValue });
+        } else {
+            // Update only current file
+            updateFileMetadata(currentIndex, { [field]: newValue });
+        }
     };
 
     // Handle cover art upload
@@ -123,14 +177,28 @@ export default function TagEditor() {
                             if (result) {
                                 // Extract base64 data
                                 const base64Data = result.split(',')[1];
-                                
-                                setMetadata(prev => ({
-                                    ...prev,
+                                  const updatedMetadata = {
+                                    ...metadata,
                                     cover_art: base64Data,
                                     cover_art_mime_type: file.type
-                                }));
-                                
+                                };
+                                  setMetadata(updatedMetadata);
                                 setCoverArtUrl(result);
+                                setHasUnsavedChanges(true);
+                                
+                                if (isBatch) {
+                                    // Update all files when in batch mode
+                                    updateAllFilesMetadata({ 
+                                        cover_art: base64Data,
+                                        cover_art_mime_type: file.type
+                                    });
+                                } else {
+                                    // Update only current file
+                                    updateFileMetadata(currentIndex, { 
+                                        cover_art: base64Data,
+                                        cover_art_mime_type: file.type
+                                    });
+                                }
                             }
                         };
                         reader.readAsDataURL(blob);
@@ -143,69 +211,116 @@ export default function TagEditor() {
                 if (e.target?.result) {
                     img.src = e.target.result as string;
                 }
-            };
-            reader.readAsDataURL(file);
+            };            reader.readAsDataURL(file);
         }
-    };
-
-    // Handle save button click
+    };    // Handle save button click
     const handleSave = async () => {
-        console.log('Metadata saved:', metadata);
-        const currentFile = files && files.length > 0 ? files[0] : null;
-        if(!currentFile){
-            alert('No file selected to save');
+        // Get current file from files array
+        const currentFile = files && files.length > 0 ? files[currentIndex] : null;
+        
+        if (!currentFile) {
+            alert('No audio file loaded');
             return;
         }
-        setIsSaving(true);
-        try{
-            const formData = new FormData();
-            formData.append('file', currentFile);
-            
-            // Clean up the metadata object - remove undefined values and handle nulls properly
-            const metadataToSend = {
-                title: metadata.title || null,
-                artist: metadata.artist || null,
-                album: metadata.album || null,
-                genre: metadata.genre || null,
-                year: metadata.year || null,
-                cover_art: metadata.cover_art || null,
-                cover_art_mime_type: metadata.cover_art_mime_type || null,
-            };
-            
-            console.log('Sending metadata:', metadataToSend);
-            formData.append('metadata', JSON.stringify(metadataToSend));
-            
-            const response = await fetch('http://localhost:8000/upload/update-tags', {
-                method: 'POST',
-                body: formData
-            });
-            
-            if (!response.ok) {
-                // Try to get more detailed error information
-                let errorMessage = `Error: ${response.status} ${response.statusText}`;
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.detail || errorMessage;
-                } catch {
-                    // If we can't parse the error response, use the status text
-                }
-                throw new Error(errorMessage);
-            }
-            
-            const result = await response.json();
 
-            if (result.success){
-                alert('Metadata saved successfully');
-                // Store the updated filename for download
-                if (result.updated_filename) {
-                    setUpdatedFilename(result.updated_filename);
+        setIsSaving(true);
+
+        try {
+            console.log('Metadata saved: ', metadata);
+            
+            // Check if this is a downloaded file
+            const currentFileData = allFilesMetadata[currentIndex];
+            const isDownloaded = currentFileData?.isDownloaded;
+            const storedFilename = currentFileData?.storedFilename;
+            
+            const formData = new FormData();
+            
+            if (isDownloaded && storedFilename) {
+                // For downloaded files, use the stored filename and different endpoint
+                formData.append('stored_filename', storedFilename);
+                formData.append('metadata', JSON.stringify(metadata));
+                
+                console.log('Saving downloaded file with stored filename:', storedFilename);
+                console.log('Sending metadata: ', metadata);
+
+                const response = await fetch('/api/upload/update-downloaded-tags', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorMessage = `HTTP ${response.status}`;
+                    
+                    try {
+                      const errorJson = JSON.parse(errorText);
+                      errorMessage = errorJson.detail || errorMessage;
+                    } catch {
+                      errorMessage = errorText || errorMessage;
+                    }
+                    
+                    console.error('Save failed:', response.status, errorMessage);
+                    throw new Error(`Failed to save metadata: ${errorMessage}`);
                 }
-            }else{
-                throw new Error(result.message || 'Failed to update tags');
+
+                const responseData = await response.json();
+                
+                if (responseData.success) {
+                    // Update the metadata store with the new updated filename
+                    const newUpdatedFilename = responseData.updated_filename;
+                    setUpdatedFilenameInStore(currentIndex, newUpdatedFilename);
+                    setUpdatedFilename(newUpdatedFilename);
+                    
+                    alert('Metadata saved successfully!');
+                    setHasUnsavedChanges(false);
+                } else {
+                    throw new Error('Failed to save metadata');
+                }
+            } else {
+                // For uploaded files, use the original logic
+                formData.append('file', currentFile, currentFilename);
+                formData.append('metadata', JSON.stringify(metadata));
+                
+                console.log('Sending metadata: ', metadata);
+
+                const response = await fetch('/api/upload/update-tags', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorMessage = `HTTP ${response.status}`;
+                    
+                    try {
+                      const errorJson = JSON.parse(errorText);
+                      errorMessage = errorJson.detail || errorMessage;
+                    } catch {
+                      errorMessage = errorText || errorMessage;
+                    }
+                    
+                    console.error('Save failed:', response.status, errorMessage);
+                    throw new Error(`Failed to save metadata: ${errorMessage}`);
+                }
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = currentFilename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                alert('Metadata saved and file downloaded successfully!');
+                setHasUnsavedChanges(false);
             }
-        } catch(error){
+        } catch (error) {
             console.error('Error saving metadata:', error);
-            alert(`Error saving metadata: ${error}`);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            alert(`Error saving metadata: ${errorMessage}`);
         } finally {
             setIsSaving(false);
         }
@@ -243,16 +358,30 @@ export default function TagEditor() {
                             onChange={handleCoverArtUpload}
                         />
                     </div>
-                    {coverArtUrl && (
-                        <Button
+                    {coverArtUrl && (                        <Button
                             size="small"
                             onClick={() => {
                                 setCoverArtUrl(null);
-                                setMetadata(prev => ({
-                                    ...prev,
+                                const updatedMetadata = {
+                                    ...metadata,
                                     cover_art: undefined,
                                     cover_art_mime_type: undefined
-                                }));
+                                };                                setMetadata(updatedMetadata);
+                                setHasUnsavedChanges(true);
+                                
+                                if (isBatch) {
+                                    // Update all files when in batch mode
+                                    updateAllFilesMetadata({ 
+                                        cover_art: undefined,
+                                        cover_art_mime_type: undefined
+                                    });
+                                } else {
+                                    // Update only current file
+                                    updateFileMetadata(currentIndex, { 
+                                        cover_art: undefined,
+                                        cover_art_mime_type: undefined
+                                    });
+                                }
                             }}
                             sx={{ mt: 1, fontSize: '0.75rem' }}
                         >
@@ -260,14 +389,13 @@ export default function TagEditor() {
                         </Button>
                     )}
                 </div>
-                <div className="flex flex-col">
-                    <TextField 
+                <div className="flex flex-col">                    <TextField 
                         id="title-text" 
                         variant="outlined" 
                         size="small" 
                         label="title" 
                         fullWidth 
-                        value={metadata.title}
+                        value={metadata.title || ''}
                         onChange={handleInputChange('title')}
                         sx={{ mb: 4, width: `${SIZES.inputSize[0]}rem`, height: `${SIZES.inputSize[1]}rem` }} 
                     />
@@ -277,35 +405,17 @@ export default function TagEditor() {
                         size="small" 
                         label="album" 
                         fullWidth 
-                        value={metadata.album}
+                        value={metadata.album || ''}
                         onChange={handleInputChange('album')}
                         sx={{ mb: 4, width: `${SIZES.inputSize[0]}rem`, height: `${SIZES.inputSize[1]}rem` }} 
-                    />
-                    <TextField 
+                    />                    <TextField 
                         id="artist-text" 
                         variant="outlined" 
                         size="small" 
                         label="artist" 
                         fullWidth 
-                        value={metadata.artist}
+                        value={metadata.artist || ''}
                         onChange={handleInputChange('artist')}
-                        sx={{ mb: 4, width: `${SIZES.inputSize[0]}rem`, height: `${SIZES.inputSize[1]}rem` }} 
-                    />
-                    <TextField 
-                        id="year-text" 
-                        variant="outlined" 
-                        size="small" 
-                        label="year" 
-                        fullWidth 
-                        type="number"
-                        value={metadata.year || ''}
-                        onChange={(e) => {
-                            const value = e.target.value;
-                            setMetadata(prev => ({
-                                ...prev,
-                                year: value ? parseInt(value) : undefined
-                            }));
-                        }}
                         sx={{ mb: 4, width: `${SIZES.inputSize[0]}rem`, height: `${SIZES.inputSize[1]}rem` }} 
                     />
                     <TextField 
@@ -314,7 +424,7 @@ export default function TagEditor() {
                         size="small" 
                         label="genre" 
                         fullWidth 
-                        value={metadata.genre}
+                        value={metadata.genre || ''}
                         onChange={handleInputChange('genre')}
                         sx={{ mb: 4, width: `${SIZES.inputSize[0]}rem`, height: `${SIZES.inputSize[1]}rem` }} 
                     />
@@ -329,14 +439,21 @@ export default function TagEditor() {
                         Save
                     </Button>
                 </div>
-            </div>
-            <div className="flex flex-col items-center justify-center">
-                {isBatch ? (
+            </div>            <div className="flex flex-col items-center justify-center">
+                {numFiles > 1 ? (
                 <>
                     <Typography variant="body1" sx={{ mb: 1 }}>
-                        {currentFilename || 'No file selected'}
+                        {currentFilename || 'No File Selected'} ({currentIndex + 1} of {numFiles})
                     </Typography>
-                    <Pagination count={numFiles} size="medium" showFirstButton showLastButton color="standard" />
+                    <Pagination 
+                        count={numFiles} 
+                        page={currentIndex + 1}
+                        onChange={(event, page) => setCurrentIndex(page - 1)}
+                        size="medium" 
+                        showFirstButton 
+                        showLastButton 
+                        color="standard" 
+                    />
                 </>
                 ) : (
                     <Box sx={{ width: 210, height: 32 }}>
@@ -348,7 +465,7 @@ export default function TagEditor() {
                     </Box>
                 )
                 }
-                <DownloadButtons updatedFilename={updatedFilename} metadata={metadata} />
+                <DownloadButtons updatedFilename={updatedFilename} metadata={metadata} hasUnsavedChanges={hasUnsavedChanges} />
             </div>
         </div>
     );

@@ -23,11 +23,10 @@ class HealthResponse(BaseModel):
 
 class AudioMetadata(BaseModel):
     """Model for audio metadata."""
-    title: Optional[str]
-    artist: Optional[str]
-    album: Optional[str]
-    year: Optional[int]
-    genre: Optional[str]
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    album: Optional[str] = None
+    genre: Optional[str] = None
     cover_art: Optional[str] = None  # Base64 encoded cover art
     cover_art_mime_type: Optional[str] = None  # MIME type of the cover art
 

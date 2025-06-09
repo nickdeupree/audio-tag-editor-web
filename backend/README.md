@@ -34,15 +34,34 @@ backend/
    cd backend
    ```
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
+2. **Option 1: Using the startup script (Recommended)**
+   ```powershell
+   .\start.ps1
    ```
+   This script will automatically:
+   - Create a virtual environment if it doesn't exist
+   - Activate the virtual environment
+   - Install dependencies
+   - Start the server
 
-3. Run the backend server:
-   ```bash
-   python main.py
-   ```
+3. **Option 2: Manual setup**
+   - Create and activate virtual environment:
+     ```bash
+     python -m venv venv
+     venv\Scripts\Activate.ps1  # On Windows PowerShell
+     # or
+     venv\Scripts\activate      # On Windows Command Prompt
+     # or
+     source venv/bin/activate   # On Linux/Mac
+     ```
+   - Install dependencies:
+     ```bash
+     pip install -r requirements.txt
+     ```
+   - Run the backend server:
+     ```bash
+     python main.py
+     ```
 
 The server will be available at:
 - Main server: http://localhost:8000

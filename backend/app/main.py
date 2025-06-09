@@ -4,7 +4,7 @@ Main FastAPI application setup.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import upload, health
+from routers import upload, health, ytmusic
 from config.settings import (
     CORS_ORIGINS, 
     CORS_CREDENTIALS, 
@@ -30,3 +30,4 @@ app.add_middleware(
 # Include routers
 app.include_router(health.router, tags=["health"])
 app.include_router(upload.router, tags=["upload"])
+app.include_router(ytmusic.router, tags=["ytmusic"])
