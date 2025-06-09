@@ -4,7 +4,6 @@ Pydantic models for request/response validation.
 
 from pydantic import BaseModel
 from typing import List, Optional
-import base64
 
 class FileInfo(BaseModel):
     """Model for file information."""
@@ -23,10 +22,11 @@ class HealthResponse(BaseModel):
 
 class AudioMetadata(BaseModel):
     """Model for audio metadata."""
-    title: Optional[str] = None
-    artist: Optional[str] = None
-    album: Optional[str] = None
-    genre: Optional[str] = None
+    title: Optional[str]
+    artist: Optional[str]
+    album: Optional[str]
+    year: Optional[int]
+    genre: Optional[str]
     cover_art: Optional[str] = None  # Base64 encoded cover art
     cover_art_mime_type: Optional[str] = None  # MIME type of the cover art
 
@@ -36,6 +36,8 @@ class AudioUploadResponse(BaseModel):
     filename: str
     metadata: AudioMetadata
     message: str
+    platform: Optional[str] = None  # Platform where the audio was sourced from (youtube, soundcloud, upload)
+    original_url: Optional[str] = None  # Original URL for downloaded content
 
 class AudioUpdateRequest(BaseModel):
     """Model for audio metadata update request."""

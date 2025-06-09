@@ -1,17 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { TextField, Button, Typography, Box, CircularProgress } from '@mui/material';
-import { useFiles } from '../vars/files';
-import { useAllFilesMetadata } from '../vars/allFilesMetadata';
-import { useNumFiles } from '../vars/numFiles';
-import { useCurrentFileIndex } from '../vars/currentFileIndex';
 
 export default function YouTubeUrl() {
-    const [youtubeLink, setYoutubeLink] = useState('');
-    const [isDownloading, setIsDownloading] = useState(false);
-    const { files, setFiles } = useFiles();
-    const { allFilesMetadata, setAllFilesMetadata } = useAllFilesMetadata();
-    const { setNumFiles } = useNumFiles();
-    const { setCurrentIndex } = useCurrentFileIndex();
+    const [youtubeLink, setYoutubeLink] = React.useState('');
+    const [isDownloading, setIsDownloading] = React.useState(false);
 
     const handleDownload = async () => {
         if (!youtubeLink.trim()) {
@@ -22,76 +14,43 @@ export default function YouTubeUrl() {
         setIsDownloading(true);
         try {
             const formData = new FormData();
-            formData.append('url', youtubeLink.trim());
+            formData.append('url', youtubeLink);
 
-            const response = await fetch('http://localhost:8000/upload/download-from-url', {
+            const response = await fetch('http://localhost:8000/upload/download/youtube', {
                 method: 'POST',
-                body: formData
+                body: formData,
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Download failed');
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.detail || `HTTP ${response.status}: ${response.statusText}`);
             }
 
             const result = await response.json();
-            
-            if (result.success && result.files && result.files.length > 0) {
-                const downloadedFile = result.files[0];
+            console.log('YouTube download successful:', result);
+
+            if (result.success && result.metadata) {
+                // Trigger a custom event to notify TagEditor
+                window.dispatchEvent(new CustomEvent('metadataLoaded', { 
+                    detail: { 
+                        metadata: result.metadata,
+                        filename: result.filename,
+                        platform: result.platform || 'youtube',
+                        originalUrl: result.original_url
+                    } 
+                }));
                 
-                if (downloadedFile.success) {
-                    // Create a dummy File object for the downloaded audio
-                    const dummyFile = new File([''], downloadedFile.filename, { 
-                        type: 'audio/mpeg' 
-                    });
-                    
-                    // Add to files array
-                    const newFiles = files ? [...files, dummyFile] : [dummyFile];
-                    
-                    // Convert File array to FileList
-                    const dataTransfer = new DataTransfer();
-                    newFiles.forEach(file => dataTransfer.items.add(file));
-                    setFiles(dataTransfer.files);
-                      // Add to metadata array
-                    const newMetadataEntry = {
-                        filename: downloadedFile.filename,
-                        metadata: downloadedFile.metadata,
-                        downloadedFrom: downloadedFile.downloaded_from,
-                        isDownloaded: true,
-                        storedFilename: downloadedFile.stored_filename
-                    };
-                    
-                    const newAllMetadata = [...allFilesMetadata, newMetadataEntry];
-                    setAllFilesMetadata(newAllMetadata);
-                    
-                    // Update counts and navigation
-                    setNumFiles(newFiles.length);
-                    setCurrentIndex(newFiles.length - 1); // Navigate to the new file
-                    
-                    // Clear the input
-                    setYoutubeLink('');
-                    
-                    // Dispatch metadata loaded event for the TagEditor
-                    const event = new CustomEvent('metadataLoaded', {
-                        detail: {
-                            metadata: downloadedFile.metadata,
-                            filename: downloadedFile.filename,
-                            fileIndex: newFiles.length - 1
-                        }
-                    });
-                    window.dispatchEvent(event);
-                    
-                    alert('YouTube audio downloaded successfully!');
-                } else {
-                    throw new Error(downloadedFile.error || 'Download failed');
-                }
+                // Clear the input
+                setYoutubeLink('');
+                alert('YouTube audio downloaded successfully!');
             } else {
-                throw new Error('No valid files were downloaded');
+                throw new Error('Download succeeded but no metadata received');
             }
-            
+
         } catch (error) {
-            console.error('Download error:', error);
-            alert(`Download failed: ${error}`);
+            console.error('YouTube download error:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            alert(`Download failed: ${errorMessage}`);
         } finally {
             setIsDownloading(false);
         }
@@ -117,11 +76,11 @@ export default function YouTubeUrl() {
                 color="error"
                 onClick={handleDownload}
                 disabled={isDownloading || !youtubeLink.trim()}
-                sx={{ px: 3, py: 1, minWidth: '160px' }}
+                sx={{ px: 3, py: 1 }}
             >
                 {isDownloading ? (
                     <>
-                        <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
+                        <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} />
                         Downloading...
                     </>
                 ) : (
