@@ -7,7 +7,6 @@ CORS_ORIGINS = [
     "http://localhost:3000",  # Next.js default port
     "http://127.0.0.1:3000",
     "https://audio-tag-editor-web.vercel.app",  # Vercel deployment
-    "https://*.vercel.app",  # Any Vercel subdomain
 ]
 
 CORS_CREDENTIALS = True
