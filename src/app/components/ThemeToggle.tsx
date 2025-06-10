@@ -13,7 +13,6 @@ import {
   Brightness4 as DarkModeIcon,
   Brightness7 as LightModeIcon,
   SettingsBrightness as SystemModeIcon,
-  MoreVert as MoreIcon,
 } from '@mui/icons-material';
 import { useThemeMode } from '../contexts/ThemeContext';
 

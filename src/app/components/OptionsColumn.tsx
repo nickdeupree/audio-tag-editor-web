@@ -1,6 +1,5 @@
 import React from 'react';
 import UploadFile from './UploadFile';
-import { Upload } from '@mui/icons-material';
 import YouTubeUrl from './YouTubeUrl';
 import SoundCloudUrl from './SoundCloudUrl';
 import { useInputStore } from '../store/inputStore';

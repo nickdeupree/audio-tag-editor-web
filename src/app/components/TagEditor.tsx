@@ -5,7 +5,6 @@ import DownloadButtons from './DownloadButtons';
 import CustomAlert from './CustomAlert';
 import { SIZES } from '../constants/sizes';
 import { useBatch } from '../vars/isBatch';
-import { useNumFiles } from '../vars/numFiles';
 import { useFiles } from '../vars/files';
 import { useCurrentFileIndex } from '../vars/currentFileIndex';
 import { useAllFilesMetadata } from '../vars/allFilesMetadata';
@@ -25,9 +24,8 @@ interface AudioMetadata {
 
 export default function TagEditor() {
     const { isBatch } = useBatch();
-    const { numFiles } = useNumFiles();
     const { files } = useFiles();    const { currentIndex, setCurrentIndex } = useCurrentFileIndex();
-    const { allFilesMetadata, setAllFilesMetadata, addFileMetadata, updateFileMetadata, setUpdatedFilename: setUpdatedFilenameInContext } = useAllFilesMetadata();
+    const { allFilesMetadata, updateFileMetadata, setUpdatedFilename: setUpdatedFilenameInContext } = useAllFilesMetadata();
     
     // State for form fields
     const [metadata, setMetadata] = useState<AudioMetadata>({
@@ -38,7 +36,7 @@ export default function TagEditor() {
     });    const [currentFilename, setCurrentFilename] = useState<string>('');
     const [updatedFilename, setUpdatedFilename] = useState<string | null>(null);
     const [coverArtUrl, setCoverArtUrl] = useState<string | null>(null);
-    const [platform, setPlatform] = useState<string | null>(null);    const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+    const [platform] = useState<string | null>(null);
 
     // Alert state
     const [alertMessage, setAlertMessage] = useState<string>('');
@@ -47,13 +45,10 @@ export default function TagEditor() {
 
     // Auto-save related state and refs
     const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const isAutoSavingRef = useRef<boolean>(false);
-
-    // Get current file metadata from allFilesMetadata
+    const isAutoSavingRef = useRef<boolean>(false);    // Get current file metadata from allFilesMetadata
     const currentFileMetadata = allFilesMetadata[currentIndex];
-    const allUpdatedFilenames = allFilesMetadata
-        .filter(f => f.updatedFilename)
-        .map(f => f.updatedFilename!);    // Load metadata when component mounts or when allFilesMetadata changes
+
+    // Load metadata when component mounts or when allFilesMetadata changes
     useEffect(() => {
         if (allFilesMetadata.length > 0 && allFilesMetadata[currentIndex]) {
             const currentFile = allFilesMetadata[currentIndex];
@@ -228,8 +223,7 @@ export default function TagEditor() {
             };
             
             console.log('Auto-saving metadata:', metadataToSend);
-            formData.append('metadata', JSON.stringify(metadataToSend));
-              const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.UPDATE_TAGS), {
+            formData.append('metadata', JSON.stringify(metadataToSend));            const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.UPDATE_TAGS), {
                 method: 'POST',
                 body: formData
             });
@@ -446,10 +440,9 @@ export default function TagEditor() {
                                 )}
                             </div>
                         )}
-                    </Box>
-                )
-                }                <DownloadButtons updatedFilename={updatedFilename} metadata={metadata} allUpdatedFilenames={allUpdatedFilenames} />
-            </div>            {showAlert && (
+                    </Box>                )
+                }                <DownloadButtons updatedFilename={updatedFilename} metadata={metadata} />
+            </div>{showAlert && (
                 <Box sx={{ mt: 2 }}>
                     <CustomAlert 
                         message={alertMessage} 

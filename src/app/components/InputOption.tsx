@@ -1,9 +1,6 @@
 import * as React from "react";
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import ToggleButton from '@mui/material/ToggleButton';
-import UploadIcon from '@mui/icons-material/Upload';
-import YouTubeIcon from '@mui/icons-material/YouTube';
-import CloudIcon from '@mui/icons-material/Cloud';
 import { useInputStore } from '../store/inputStore';
 
 export default function InputOption() {
