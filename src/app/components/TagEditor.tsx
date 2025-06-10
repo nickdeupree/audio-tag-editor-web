@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Button, TextField, Pagination, Typography } from '@mui/material';
 import UploadIcon from '@mui/icons-material/Upload';
 import DownloadButtons from './DownloadButtons';
+import CustomAlert from './CustomAlert';
 import { SIZES } from '../constants/sizes';
 import { useBatch } from '../vars/isBatch';
-import { useNumFiles } from '../vars/numFiles';
 import { useFiles } from '../vars/files';
+import { useCurrentFileIndex } from '../vars/currentFileIndex';
+import { useAllFilesMetadata } from '../vars/allFilesMetadata';
+import { getApiUrl, API_CONFIG } from '../config/api';
 
 interface AudioMetadata {
     title?: string;
@@ -21,8 +24,8 @@ interface AudioMetadata {
 
 export default function TagEditor() {
     const { isBatch } = useBatch();
-    const { numFiles } = useNumFiles();
-    const { files } = useFiles();
+    const { files } = useFiles();    const { currentIndex, setCurrentIndex } = useCurrentFileIndex();
+    const { allFilesMetadata, updateFileMetadata, setUpdatedFilename: setUpdatedFilenameInContext } = useAllFilesMetadata();
     
     // State for form fields
     const [metadata, setMetadata] = useState<AudioMetadata>({
@@ -30,59 +33,96 @@ export default function TagEditor() {
         artist: '',
         album: '',
         genre: '',
-    });
-    const [currentFilename, setCurrentFilename] = useState<string>('');
+    });    const [currentFilename, setCurrentFilename] = useState<string>('');
     const [updatedFilename, setUpdatedFilename] = useState<string | null>(null);
     const [coverArtUrl, setCoverArtUrl] = useState<string | null>(null);
-    const [isSaving, setIsSaving] = useState(false);
+    const [platform] = useState<string | null>(null);
 
-    // Load metadata when component mounts or when new metadata is available
+    // Alert state
+    const [alertMessage, setAlertMessage] = useState<string>('');
+    const [alertSeverity, setAlertSeverity] = useState<'error' | 'warning' | 'info' | 'success'>('info');
+    const [showAlert, setShowAlert] = useState<boolean>(false);
+
+    // Auto-save related state and refs
+    const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isAutoSavingRef = useRef<boolean>(false);    // Get current file metadata from allFilesMetadata
+    const currentFileMetadata = allFilesMetadata[currentIndex];
+
+    // Load metadata when component mounts or when allFilesMetadata changes
     useEffect(() => {
-        // Listen for metadata loaded events
-        const handleMetadataLoaded = (event: CustomEvent) => {
-            const { metadata: newMetadata, filename } = event.detail;
-            setMetadata({
-                title: newMetadata.title || '',
-                artist: newMetadata.artist || '',
-                album: newMetadata.album || '',
-                genre: newMetadata.genre || '',
-                year: newMetadata.year || undefined,
-                cover_art: newMetadata.cover_art || undefined,
-                cover_art_mime_type: newMetadata.cover_art_mime_type || undefined,
-            });
-            setCurrentFilename(filename);
+        if (allFilesMetadata.length > 0 && allFilesMetadata[currentIndex]) {
+            const currentFile = allFilesMetadata[currentIndex];
             
-            // Set cover art URL if available
-            if (newMetadata.cover_art && newMetadata.cover_art_mime_type) {
-                setCoverArtUrl(`data:${newMetadata.cover_art_mime_type};base64,${newMetadata.cover_art}`);
+            setMetadata({
+                title: currentFile.metadata.title || '',
+                artist: currentFile.metadata.artist || '',
+                album: currentFile.metadata.album || '',
+                genre: currentFile.metadata.genre || '',
+                year: currentFile.metadata.year || undefined,
+                cover_art: currentFile.metadata.cover_art || undefined,
+                cover_art_mime_type: currentFile.metadata.cover_art_mime_type || undefined,
+            });
+            setCurrentFilename(currentFile.filename);
+            
+            if (currentFile.metadata.cover_art && currentFile.metadata.cover_art_mime_type) {
+                setCoverArtUrl(`data:${currentFile.metadata.cover_art_mime_type};base64,${currentFile.metadata.cover_art}`);
             } else {
                 setCoverArtUrl(null);
             }
-        };
+        }
+    }, [allFilesMetadata, currentIndex]);
 
-        window.addEventListener('metadataLoaded', handleMetadataLoaded as EventListener);
-
-        return () => {
-            window.removeEventListener('metadataLoaded', handleMetadataLoaded as EventListener);
-        };
-    }, []);
-
-    // Handle input changes
+    // Update current file display when currentIndex changes
+    useEffect(() => {
+        if (currentFileMetadata) {
+            setMetadata({
+                title: currentFileMetadata.metadata.title || '',
+                artist: currentFileMetadata.metadata.artist || '',
+                album: currentFileMetadata.metadata.album || '',
+                genre: currentFileMetadata.metadata.genre || '',
+                year: currentFileMetadata.metadata.year || undefined,
+                cover_art: currentFileMetadata.metadata.cover_art || undefined,
+                cover_art_mime_type: currentFileMetadata.metadata.cover_art_mime_type || undefined,
+            });
+            setCurrentFilename(currentFileMetadata.filename);
+            setUpdatedFilename(currentFileMetadata.updatedFilename || null);
+            
+            if (currentFileMetadata.metadata.cover_art && currentFileMetadata.metadata.cover_art_mime_type) {
+                setCoverArtUrl(`data:${currentFileMetadata.metadata.cover_art_mime_type};base64,${currentFileMetadata.metadata.cover_art}`);
+            } else {
+                setCoverArtUrl(null);
+            }
+        }
+    }, [currentIndex, currentFileMetadata]);    // Handle input changes
     const handleInputChange = (field: keyof AudioMetadata) => (event: React.ChangeEvent<HTMLInputElement>) => {
-        setMetadata(prev => ({
-            ...prev,
+        const newMetadata = {
+            ...metadata,
             [field]: event.target.value
-        }));
+        };
+        setMetadata(newMetadata);
+        
+        if (isBatch) {
+            // Apply changes to all selected files
+            allFilesMetadata.forEach((fileMetadata, index) => {
+                updateFileMetadata(index, { [field]: event.target.value });
+            });
+        } else {
+            updateFileMetadata(currentIndex, { [field]: event.target.value });
+        }
+
+        // Trigger auto-save
+        debouncedAutoSave(newMetadata);
     };
 
     // Handle cover art upload
     const handleCoverArtUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file) {
-            // Validate file type
+        if (file) {            // Validate file type
             const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
             if (!allowedTypes.includes(file.type)) {
-                alert('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
+                setAlertMessage('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
+                setAlertSeverity('error');
+                setShowAlert(true);
                 return;
             }
 
@@ -120,17 +160,23 @@ export default function TagEditor() {
                         const reader = new FileReader();
                         reader.onload = (e) => {
                             const result = e.target?.result as string;
-                            if (result) {
-                                // Extract base64 data
+                            if (result) {                                // Extract base64 data
                                 const base64Data = result.split(',')[1];
-                                
-                                setMetadata(prev => ({
-                                    ...prev,
+                                const newMetadata = {
+                                    ...metadata,
                                     cover_art: base64Data,
                                     cover_art_mime_type: file.type
-                                }));
+                                };
+                                setMetadata(newMetadata);
+                                updateFileMetadata(currentIndex, {
+                                    cover_art: base64Data,
+                                    cover_art_mime_type: file.type
+                                });
                                 
                                 setCoverArtUrl(result);
+                                
+                                // Trigger auto-save for cover art
+                                debouncedAutoSave(newMetadata);
                             }
                         };
                         reader.readAsDataURL(blob);
@@ -145,37 +191,39 @@ export default function TagEditor() {
                 }
             };
             reader.readAsDataURL(file);
-        }
-    };
+        }    };
 
-    // Handle save button click
-    const handleSave = async () => {
-        console.log('Metadata saved:', metadata);
-        const currentFile = files && files.length > 0 ? files[0] : null;
-        if(!currentFile){
-            alert('No file selected to save');
+    // Auto-save function with debouncing
+    const autoSave = useCallback(async (metadataToSave: AudioMetadata) => {
+        // Prevent multiple simultaneous saves
+        if (isAutoSavingRef.current) {
             return;
         }
-        setIsSaving(true);
-        try{
+
+        const currentFile = files && files.length > currentIndex ? files[currentIndex] : null;
+        if (!currentFile) {
+            return;
+        }
+
+        isAutoSavingRef.current = true;
+        
+        try {
             const formData = new FormData();
             formData.append('file', currentFile);
             
             // Clean up the metadata object - remove undefined values and handle nulls properly
             const metadataToSend = {
-                title: metadata.title || null,
-                artist: metadata.artist || null,
-                album: metadata.album || null,
-                genre: metadata.genre || null,
-                year: metadata.year || null,
-                cover_art: metadata.cover_art || null,
-                cover_art_mime_type: metadata.cover_art_mime_type || null,
+                title: metadataToSave.title || null,
+                artist: metadataToSave.artist || null,
+                album: metadataToSave.album || null,
+                genre: metadataToSave.genre || null,
+                year: metadataToSave.year || null,
+                cover_art: metadataToSave.cover_art || null,
+                cover_art_mime_type: metadataToSave.cover_art_mime_type || null,
             };
             
-            console.log('Sending metadata:', metadataToSend);
-            formData.append('metadata', JSON.stringify(metadataToSend));
-            
-            const response = await fetch('http://localhost:8000/upload/update-tags', {
+            console.log('Auto-saving metadata:', metadataToSend);
+            formData.append('metadata', JSON.stringify(metadataToSend));            const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.UPDATE_TAGS), {
                 method: 'POST',
                 body: formData
             });
@@ -194,22 +242,46 @@ export default function TagEditor() {
             
             const result = await response.json();
 
-            if (result.success){
-                alert('Metadata saved successfully');
+            if (result.success) {
+                console.log('Metadata auto-saved successfully');
                 // Store the updated filename for download
                 if (result.updated_filename) {
                     setUpdatedFilename(result.updated_filename);
+                    // Update the context with the updated filename
+                    setUpdatedFilenameInContext(currentIndex, result.updated_filename);
                 }
-            }else{
+            } else {
                 throw new Error(result.message || 'Failed to update tags');
             }
-        } catch(error){
-            console.error('Error saving metadata:', error);
-            alert(`Error saving metadata: ${error}`);
+        } catch (error) {
+            console.error('Error auto-saving metadata:', error);
+            // Don't show alert for auto-save errors to avoid interrupting user workflow
         } finally {
-            setIsSaving(false);
+            isAutoSavingRef.current = false;
         }
-    };
+    }, [files, currentIndex, setUpdatedFilenameInContext]);
+
+    // Debounced auto-save function
+    const debouncedAutoSave = useCallback((metadataToSave: AudioMetadata) => {
+        // Clear existing timeout
+        if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current);
+        }
+
+        // Set new timeout for auto-save (1 second delay)
+        autoSaveTimeoutRef.current = setTimeout(() => {
+            autoSave(metadataToSave);
+        }, 1000);
+    }, [autoSave]);
+
+    // Clean up timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (autoSaveTimeoutRef.current) {
+                clearTimeout(autoSaveTimeoutRef.current);
+            }
+        };
+    }, []);
 
     return (
         <div className="flex flex-col">
@@ -245,14 +317,21 @@ export default function TagEditor() {
                     </div>
                     {coverArtUrl && (
                         <Button
-                            size="small"
-                            onClick={() => {
+                            size="small"                            onClick={() => {
                                 setCoverArtUrl(null);
-                                setMetadata(prev => ({
-                                    ...prev,
+                                const newMetadata = {
+                                    ...metadata,
                                     cover_art: undefined,
                                     cover_art_mime_type: undefined
-                                }));
+                                };
+                                setMetadata(newMetadata);
+                                updateFileMetadata(currentIndex, {
+                                    cover_art: undefined,
+                                    cover_art_mime_type: undefined
+                                });
+                                
+                                // Trigger auto-save for cover art removal
+                                debouncedAutoSave(newMetadata);
                             }}
                             sx={{ mt: 1, fontSize: '0.75rem' }}
                         >
@@ -298,13 +377,18 @@ export default function TagEditor() {
                         label="year" 
                         fullWidth 
                         type="number"
-                        value={metadata.year || ''}
-                        onChange={(e) => {
+                        value={metadata.year || ''}                        onChange={(e) => {
                             const value = e.target.value;
-                            setMetadata(prev => ({
-                                ...prev,
-                                year: value ? parseInt(value) : undefined
-                            }));
+                            const yearValue = value ? parseInt(value) : undefined;
+                            const newMetadata = {
+                                ...metadata,
+                                year: yearValue
+                            };
+                            setMetadata(newMetadata);
+                            updateFileMetadata(currentIndex, { year: yearValue });
+                            
+                            // Trigger auto-save for year
+                            debouncedAutoSave(newMetadata);
                         }}
                         sx={{ mb: 4, width: `${SIZES.inputSize[0]}rem`, height: `${SIZES.inputSize[1]}rem` }} 
                     />
@@ -315,41 +399,58 @@ export default function TagEditor() {
                         label="genre" 
                         fullWidth 
                         value={metadata.genre}
-                        onChange={handleInputChange('genre')}
-                        sx={{ mb: 4, width: `${SIZES.inputSize[0]}rem`, height: `${SIZES.inputSize[1]}rem` }} 
+                        onChange={handleInputChange('genre')}                        sx={{ mb: 4, width: `${SIZES.inputSize[0]}rem`, height: `${SIZES.inputSize[1]}rem` }} 
                     />
-                    <Button 
-                        variant="contained" 
-                        size="small" 
-                        onClick={handleSave}
-                        loading={isSaving}
-                        disabled={isSaving || !files || files.length === 0}
-                        sx={{mb: 2, width: `${SIZES.inputSize[0]}rem`, height: `${SIZES.inputSize[1]}rem` }}
-                    >
-                        Save
-                    </Button>
                 </div>
-            </div>
-            <div className="flex flex-col items-center justify-center">
-                {isBatch ? (
+            </div><div className="flex flex-col items-center justify-center">
+                {allFilesMetadata.length > 1 ? (
                 <>
                     <Typography variant="body1" sx={{ mb: 1 }}>
                         {currentFilename || 'No file selected'}
                     </Typography>
-                    <Pagination count={numFiles} size="medium" showFirstButton showLastButton color="standard" />
+                    <Pagination 
+                        count={allFilesMetadata.length} 
+                        page={currentIndex + 1}
+                        onChange={(event, page) => setCurrentIndex(page - 1)}
+                        size="medium" 
+                        showFirstButton 
+                        showLastButton 
+                        color="standard" 
+                    />
                 </>
                 ) : (
                     <Box sx={{ width: 210, height: 32 }}>
                         {currentFilename && (
-                            <Typography variant="body2" sx={{ textAlign: 'center' }}>
-                                {currentFilename}
-                            </Typography>
+                            <div>
+                                <Typography variant="body2" sx={{ textAlign: 'center' }}>
+                                    {currentFilename}
+                                </Typography>
+                                {platform && platform !== 'upload' && (
+                                    <Typography 
+                                        variant="caption" 
+                                        sx={{ 
+                                            textAlign: 'center', 
+                                            display: 'block',
+                                            color: platform === 'youtube' ? '#FF0000' : platform === 'soundcloud' ? '#ff5500' : 'inherit',
+                                            fontWeight: 'bold'
+                                        }}
+                                    >
+                                        From {platform === 'youtube' ? 'YouTube' : platform === 'soundcloud' ? 'SoundCloud' : platform}
+                                    </Typography>
+                                )}
+                            </div>
                         )}
-                    </Box>
-                )
-                }
-                <DownloadButtons updatedFilename={updatedFilename} metadata={metadata} />
-            </div>
+                    </Box>                )
+                }                <DownloadButtons updatedFilename={updatedFilename} metadata={metadata} />
+            </div>{showAlert && (
+                <Box sx={{ mt: 2 }}>
+                    <CustomAlert 
+                        message={alertMessage} 
+                        severity={alertSeverity}
+                        onClose={() => setShowAlert(false)}
+                    />
+                </Box>
+            )}
         </div>
     );
 }

@@ -10,16 +10,58 @@ export default function TagEditorSkele() {
                     <Skeleton variant="rounded" width={`${SIZES.artSize}rem`} height={`${SIZES.artSize}rem`} />
                 </div>
                 <div className="flex flex-col">
-                    <Skeleton variant="rounded" width={`${SIZES.inputSize[0]}rem`} height={`${SIZES.inputSize[1]}rem`} className="mb-4" />
-                    <Skeleton variant="rounded" width={`${SIZES.inputSize[0]}rem`} height={`${SIZES.inputSize[1]}rem`} className="mb-4" />
-                    <Skeleton variant="rounded" width={`${SIZES.inputSize[0]}rem`} height={`${SIZES.inputSize[1]}rem`} className="mb-4" />
-                    <Skeleton variant="rounded" width={`${SIZES.inputSize[0]}rem`} height={`${SIZES.inputSize[1]}rem`} className="mb-4" />
-                    <Skeleton variant="rounded" width={`${SIZES.inputSize[0]}rem`} height={`${SIZES.inputSize[1]}rem`} className="mb-4" />
+                    <Skeleton 
+                        variant="rounded" 
+                        width={`${SIZES.inputSize[0]}rem`} 
+                        height={`${SIZES.inputSize[1]}rem`} 
+                        sx={{ mb: 4 }}
+                    />
+                    <Skeleton 
+                        variant="rounded" 
+                        width={`${SIZES.inputSize[0]}rem`} 
+                        height={`${SIZES.inputSize[1]}rem`} 
+                        sx={{ mb: 4 }}
+                    />
+                    <Skeleton 
+                        variant="rounded" 
+                        width={`${SIZES.inputSize[0]}rem`} 
+                        height={`${SIZES.inputSize[1]}rem`} 
+                        sx={{ mb: 4 }}
+                    />
+                    <Skeleton 
+                        variant="rounded" 
+                        width={`${SIZES.inputSize[0]}rem`} 
+                        height={`${SIZES.inputSize[1]}rem`} 
+                        sx={{ mb: 4 }}
+                    />
+                    <Skeleton 
+                        variant="rounded" 
+                        width={`${SIZES.inputSize[0]}rem`} 
+                        height={`${SIZES.inputSize[1]}rem`} 
+                        sx={{ mb: 4 }}
+                    />
                 </div>
             </div>
-            <div className="flex flex-row justify-center mt-6 gap-4">
-                    <Skeleton variant="rounded" width={`${SIZES.buttonSize[0]}rem`} height={`${SIZES.buttonSize[1]}rem`} className="mb-2" />
-                    <Skeleton variant="rounded" width={`${SIZES.buttonSize[0]}rem`} height={`${SIZES.buttonSize[1]}rem`} className="mb-2" />
+            <div className="flex flex-col items-center justify-center">
+                {/* Skeleton for filename/pagination area */}
+                <Skeleton 
+                    variant="text" 
+                    width={210} 
+                    height={32} 
+                    sx={{ mb: 1 }}
+                />
+                <div className="flex flex-row justify-center gap-4">
+                    <Skeleton 
+                        variant="rounded" 
+                        width={`${SIZES.buttonSize[0]}rem`} 
+                        height={`${SIZES.buttonSize[1]}rem`}
+                    />
+                    <Skeleton 
+                        variant="rounded" 
+                        width={`${SIZES.buttonSize[0]}rem`} 
+                        height={`${SIZES.buttonSize[1]}rem`}
+                    />
+                </div>
             </div>
         </div>
     );

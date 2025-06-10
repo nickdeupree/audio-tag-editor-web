@@ -16,9 +16,10 @@ import uvicorn
 
 if __name__ == "__main__":
     print("Starting Audio Tag Editor Backend...")
-    print("Server will be available at: http://localhost:8000")
-    print("API docs will be available at: http://localhost:8000/docs")
-    print("Make sure your Next.js app is running on http://localhost:3000")
+    port = int(os.environ.get("PORT", 8000))
+    print(f"Server will be available at: http://0.0.0.0:{port}")
+    print(f"API docs will be available at: http://0.0.0.0:{port}/docs")
+    print("Make sure your frontend is configured to use this backend URL")
     print()
     
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=port)

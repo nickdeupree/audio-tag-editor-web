@@ -5,14 +5,9 @@ import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
-import AccountIcon from './AccountIcon';
-import Avatar from '@mui/material/Avatar';
-import { useState } from 'react';
+import ThemeToggle from './ThemeToggle';
 
 export default function Header() {
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-
     return (
         <Box sx={{ flexGrow: 1 }}>
         <AppBar position="static">
@@ -20,7 +15,7 @@ export default function Header() {
             <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
                 Audio Tag Editor
             </Typography>
-            <AccountIcon />
+            <ThemeToggle />
             </Toolbar>
         </AppBar>
         </Box>

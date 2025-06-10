@@ -5,7 +5,8 @@ Upload router for handling file uploads and audio tag operations.
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse, FileResponse
 from app.services.audio_service import AudioService
-from models.responses import AudioMetadata, AudioUploadResponse, AudioUpdateRequest
+from app.services.download_service import DownloadService
+from models.responses import AudioMetadata, AudioUploadResponse
 from typing import List
 import tempfile
 import os
@@ -16,47 +17,62 @@ router = APIRouter(prefix="/upload")
 @router.post("/", response_model=AudioUploadResponse)
 async def upload_audio_file(files: List[UploadFile] = File(...)):
     """Upload audio files and extract their metadata."""
-    # For now, handle just the first file (you can extend this for batch processing)
-    file = files[0]
+    if not files:
+        raise HTTPException(status_code=400, detail="No files uploaded")
     
-    # Validate file type
-    allowed_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
-    if not file.filename.lower().endswith(allowed_extensions):
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Unsupported file format. Allowed formats: {', '.join(allowed_extensions)}"
-        )
+    # Handle multiple files - return metadata for all of them
+    all_metadata = []
     
-    temp_file_path = None
-    try:
-        # Create a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-            temp_file_path = temp_file.name
+    for file in files:
+        # Validate file type
+        allowed_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
+        if not file.filename.lower().endswith(allowed_extensions):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported file format for {file.filename}. Allowed formats: {', '.join(allowed_extensions)}"
+            )
         
-        # Extract metadata using the audio service
-        audio_service = AudioService()
-        metadata = audio_service.extract_metadata(temp_file_path)
-        
-        return AudioUploadResponse(
-            success=True,
-            filename=file.filename,
-            metadata=metadata,
-            message="File uploaded and metadata extracted successfully"
-        )
-        
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
-    finally:
-        # Always clean up temporary file
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-            except OSError:
-                pass
+        temp_file_path = None
+        try:
+            # Create a temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+                content = await file.read()
+                temp_file.write(content)
+                temp_file_path = temp_file.name
+            
+            # Extract metadata using the audio service
+            audio_service = AudioService()
+            metadata = audio_service.extract_metadata(temp_file_path)
+            
+            all_metadata.append({
+                'filename': file.filename,
+                'metadata': metadata
+            })
+            
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error processing file {file.filename}: {str(e)}")
+        finally:
+            # Always clean up temporary file
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.unlink(temp_file_path)
+                except OSError:
+                    pass
+    
+    # Return the first file's info for compatibility, but include all metadata
+    first_file = files[0]
+    first_metadata = all_metadata[0]['metadata'] if all_metadata else None
+    
+    return AudioUploadResponse(
+        success=True,
+        filename=first_file.filename,
+        metadata=first_metadata,
+        message=f"{len(files)} file(s) uploaded and metadata extracted successfully",
+        platform="upload",
+        all_files_metadata=all_metadata  # Include all files metadata
+    )
 
 @router.post("/update-tags")
 async def update_audio_tags(
@@ -234,10 +250,17 @@ async def get_cover_art(filename: str):
 async def download_file(filename: str):
     """Serve the updated audio file for download."""
     # Construct the file path (this should match the storage location in the update-tags endpoint)
-    file_path = os.path.join("/tmp/updated_audio_files", filename)
+    updated_files_dir = "/tmp/updated_audio_files"
+    file_path = os.path.join(updated_files_dir, filename)
+    
+    print(f"DEBUG: Looking for file: {file_path}")
+    print(f"DEBUG: Directory exists: {os.path.exists(updated_files_dir)}")
+    
+    if os.path.exists(updated_files_dir):
+        print(f"DEBUG: Files in directory: {os.listdir(updated_files_dir)}")
     
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
     
     return FileResponse(path=file_path, filename=filename, media_type='audio/mpeg')
 
@@ -246,22 +269,66 @@ async def download_latest_updated_file():
     """Download the most recently updated audio file."""
     updated_files_dir = "/tmp/updated_audio_files"
     
+    print(f"DEBUG: Checking directory: {updated_files_dir}")
+    print(f"DEBUG: Directory exists: {os.path.exists(updated_files_dir)}")
+    
     if not os.path.exists(updated_files_dir):
-        raise HTTPException(status_code=404, detail="No updated files available")
+        print("DEBUG: Directory does not exist, creating it...")
+        os.makedirs(updated_files_dir, exist_ok=True)
+        raise HTTPException(status_code=404, detail="No updated files available - directory was empty")
     
-    # Find the most recent file
-    files = [f for f in os.listdir(updated_files_dir) if f.startswith("updated_")]
-    if not files:
-        raise HTTPException(status_code=404, detail="No updated files available")
+    # Find files that start with "updated_" or any audio files
+    all_files = os.listdir(updated_files_dir)
+    print(f"DEBUG: All files in directory: {all_files}")
     
-    # Sort by creation time (timestamp in filename)
-    files.sort(key=lambda x: os.path.getctime(os.path.join(updated_files_dir, x)), reverse=True)
-    latest_file = files[0]
+    # Look for updated files first
+    updated_files = [f for f in all_files if f.startswith("updated_")]
+    print(f"DEBUG: Updated files found: {updated_files}")
+    
+    # If no updated files, look for any audio files
+    if not updated_files:
+        audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
+        audio_files = [f for f in all_files if f.lower().endswith(audio_extensions)]
+        print(f"DEBUG: Audio files found: {audio_files}")
+        
+        if not audio_files:
+            raise HTTPException(status_code=404, detail="No audio files available for download")
+        
+        # Use the most recent audio file
+        files_to_check = audio_files
+    else:
+        files_to_check = updated_files
+    
+    if not files_to_check:
+        raise HTTPException(status_code=404, detail="No files available for download")
+    
+    # Sort by creation time (newest first)
+    files_with_time = []
+    for f in files_to_check:
+        file_path = os.path.join(updated_files_dir, f)
+        if os.path.exists(file_path):
+            files_with_time.append((f, os.path.getctime(file_path)))
+    
+    if not files_with_time:
+        raise HTTPException(status_code=404, detail="No accessible files found")
+    
+    # Sort by creation time, newest first
+    files_with_time.sort(key=lambda x: x[1], reverse=True)
+    latest_file = files_with_time[0][0]
+    
+    print(f"DEBUG: Latest file selected: {latest_file}")
     
     file_path = os.path.join(updated_files_dir, latest_file)
     
-    # Extract original filename (remove timestamp prefix)
-    original_filename = latest_file.split("_", 2)[-1] if "_" in latest_file else latest_file
+    # Extract original filename (remove timestamp prefix if it exists)
+    if latest_file.startswith("updated_") and "_" in latest_file:
+        # Format: updated_timestamp_originalname.mp3
+        parts = latest_file.split("_", 2)
+        original_filename = parts[2] if len(parts) > 2 else latest_file
+    else:
+        original_filename = latest_file
+    
+    print(f"DEBUG: Serving file: {file_path} as {original_filename}")
     
     return FileResponse(
         path=file_path, 
@@ -269,3 +336,218 @@ async def download_latest_updated_file():
         media_type='application/octet-stream'
     )
 
+@router.post("/download/youtube")
+async def download_youtube_audio(url: str = Form(...)):
+    """Download audio from YouTube URL and extract metadata."""
+    print(f"DEBUG: Received YouTube URL: {url}")
+    
+    download_service = DownloadService()
+    downloaded_file_path = None
+    
+    try:
+        # Download the audio
+        download_result = download_service.download_audio(url, output_format='mp3')
+        downloaded_file_path = download_result['file_path']
+        
+        print(f"DEBUG: Downloaded file to: {downloaded_file_path}")
+        
+        # Extract metadata using the audio service
+        audio_service = AudioService()
+        metadata = audio_service.extract_metadata(downloaded_file_path)
+        
+        # Enhance metadata with info from download
+        download_metadata = download_result['metadata']
+        if not metadata.title and download_metadata.get('title'):
+            metadata.title = download_metadata['title']
+        if not metadata.artist and download_metadata.get('artist'):
+            metadata.artist = download_metadata['artist']
+        if not metadata.album and download_metadata.get('album'):
+            metadata.album = download_metadata['album']
+        if not metadata.year and download_metadata.get('year'):
+            metadata.year = download_metadata['year']
+        if not metadata.genre and download_metadata.get('genre'):
+            metadata.genre = download_metadata['genre']
+        
+        # Create a directory to store downloaded files
+        downloaded_files_dir = "/tmp/downloaded_audio_files"
+        os.makedirs(downloaded_files_dir, exist_ok=True)
+        
+        # Store the downloaded file with a unique name
+        import time
+        timestamp = int(time.time())
+        downloaded_filename = f"youtube_{timestamp}_{download_result['original_title'][:50].replace('/', '_')}.mp3"
+        stored_file_path = os.path.join(downloaded_files_dir, downloaded_filename)
+        
+        # Copy the downloaded file to the storage location
+        import shutil
+        shutil.copy2(downloaded_file_path, stored_file_path)
+        
+        return AudioUploadResponse(
+            success=True,
+            filename=downloaded_filename,
+            metadata=metadata,
+            message="YouTube audio downloaded and metadata extracted successfully",
+            platform="youtube",
+            original_url=url
+        )
+        
+    except Exception as e:
+        print(f"DEBUG: Download error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error downloading YouTube audio: {str(e)}")
+    finally:
+        # Clean up temporary download file
+        if downloaded_file_path and os.path.exists(downloaded_file_path):
+            try:
+                download_service.cleanup_download(downloaded_file_path)
+            except Exception:
+                pass
+
+@router.post("/download/soundcloud")
+async def download_soundcloud_audio(url: str = Form(...)):
+    """Download audio from SoundCloud URL and extract metadata."""
+    print(f"DEBUG: Received SoundCloud URL: {url}")
+    
+    download_service = DownloadService()
+    downloaded_file_path = None
+    
+    try:
+        # Download the audio
+        download_result = download_service.download_audio(url, output_format='mp3')
+        downloaded_file_path = download_result['file_path']
+        
+        print(f"DEBUG: Downloaded file to: {downloaded_file_path}")
+        
+        # Extract metadata using the audio service
+        audio_service = AudioService()
+        metadata = audio_service.extract_metadata(downloaded_file_path)
+        
+        # Enhance metadata with info from download
+        download_metadata = download_result['metadata']
+        if not metadata.title and download_metadata.get('title'):
+            metadata.title = download_metadata['title']
+        if not metadata.artist and download_metadata.get('artist'):
+            metadata.artist = download_metadata['artist']
+        if not metadata.album and download_metadata.get('album'):
+            metadata.album = download_metadata['album']
+        if not metadata.year and download_metadata.get('year'):
+            metadata.year = download_metadata['year']
+        if not metadata.genre and download_metadata.get('genre'):
+            metadata.genre = download_metadata['genre']
+        
+        # Create a directory to store downloaded files
+        downloaded_files_dir = "/tmp/downloaded_audio_files"
+        os.makedirs(downloaded_files_dir, exist_ok=True)
+        
+        # Store the downloaded file with a unique name
+        import time
+        timestamp = int(time.time())
+        downloaded_filename = f"soundcloud_{timestamp}_{download_result['original_title'][:50].replace('/', '_')}.mp3"
+        stored_file_path = os.path.join(downloaded_files_dir, downloaded_filename)
+        
+        # Copy the downloaded file to the storage location
+        import shutil
+        shutil.copy2(downloaded_file_path, stored_file_path)
+        
+        return AudioUploadResponse(
+            success=True,
+            filename=downloaded_filename,
+            metadata=metadata,
+            message="SoundCloud audio downloaded and metadata extracted successfully",
+            platform="soundcloud",
+            original_url=url
+        )
+        
+    except Exception as e:
+        print(f"DEBUG: Download error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error downloading SoundCloud audio: {str(e)}")
+    finally:
+        # Clean up temporary download file
+        if downloaded_file_path and os.path.exists(downloaded_file_path):
+            try:
+                download_service.cleanup_download(downloaded_file_path)
+            except Exception:
+                pass
+
+@router.get("/test-download")
+async def test_download_service():
+    """Test the download service functionality."""
+    try:
+        download_service = DownloadService()
+        test_result = download_service.test_ytdl_functionality()
+        
+        return JSONResponse(content={
+            "success": test_result['success'],
+            "message": "Download service test completed",
+            "test_result": test_result
+        })
+        
+    except Exception as e:
+        print(f"DEBUG: Test error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "message": f"Download service test failed: {str(e)}"
+            }
+        )
+
+@router.get("/download-all")
+async def download_all_updated_files():
+    """Download all updated audio files as a zip archive."""
+    import zipfile
+    import tempfile
+    import shutil
+    
+    updated_files_dir = "/tmp/updated_audio_files"
+    
+    print(f"DEBUG: Checking directory for download-all: {updated_files_dir}")
+    print(f"DEBUG: Directory exists: {os.path.exists(updated_files_dir)}")
+    
+    if not os.path.exists(updated_files_dir):
+        print("DEBUG: Directory does not exist, creating it...")
+        os.makedirs(updated_files_dir, exist_ok=True)
+        raise HTTPException(status_code=404, detail="No files available for download")
+    
+    # Find all files (not just updated ones)
+    all_files = os.listdir(updated_files_dir)
+    print(f"DEBUG: All files in directory: {all_files}")
+    
+    # Filter for audio files
+    audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
+    audio_files = [f for f in all_files if f.lower().endswith(audio_extensions)]
+    print(f"DEBUG: Audio files found: {audio_files}")
+    
+    if not audio_files:
+        raise HTTPException(status_code=404, detail="No audio files available for download")
+    
+    # Create a temporary zip file
+    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+    temp_zip.close()
+    
+    try:
+        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file in audio_files:
+                file_path = os.path.join(updated_files_dir, file)
+                # Extract original filename (remove timestamp prefix if it exists)
+                if file.startswith("updated_") and "_" in file:
+                    parts = file.split("_", 2)
+                    original_filename = parts[2] if len(parts) > 2 else file
+                else:
+                    original_filename = file
+                
+                print(f"DEBUG: Adding to zip: {file_path} as {original_filename}")
+                zip_file.write(file_path, original_filename)
+        
+        print(f"DEBUG: Created zip file: {temp_zip.name}")
+        
+        return FileResponse(
+            path=temp_zip.name,
+            filename="updated_audio_files.zip",
+            media_type='application/zip'
+        )
+    except Exception as e:
+        print(f"DEBUG: Error creating zip: {e}")
+        # Clean up temp file if something goes wrong
+        if os.path.exists(temp_zip.name):
+            os.unlink(temp_zip.name)
+        raise HTTPException(status_code=500, detail=f"Error creating zip file: {str(e)}")
