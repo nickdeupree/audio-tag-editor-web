@@ -27,11 +27,6 @@ class AudioMetadata(BaseModel):
     album: Optional[str]
     year: Optional[int]
     genre: Optional[str]
-<<<<<<< HEAD
-    track: Optional[str] = None  # Track number
-    duration: Optional[float] = None  # Duration in seconds
-=======
->>>>>>> 0bb8875cf171e15a77a5a5f167492537a03f8dc9
     cover_art: Optional[str] = None  # Base64 encoded cover art
     cover_art_mime_type: Optional[str] = None  # MIME type of the cover art
 
@@ -43,6 +38,7 @@ class AudioUploadResponse(BaseModel):
     message: str
     platform: Optional[str] = None  # Platform where the audio was sourced from (youtube, soundcloud, upload)
     original_url: Optional[str] = None  # Original URL for downloaded content
+    all_files_metadata: Optional[List[dict]] = None  # Metadata for all uploaded files
 
 class AudioUpdateRequest(BaseModel):
     """Model for audio metadata update request."""

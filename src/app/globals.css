@@ -13,6 +13,12 @@
   --color-upload:       #1482A3;
 }
 
+[data-theme="dark"] {
+  --color-background:   #0a0a0a;
+  --color-foreground:   #ededed;
+  --color-muted:        #a1a1aa;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -41,7 +47,6 @@
 .workspace-body:hover {
   border-color: var(--color-primary);
   background-color: var(--color-primary);
-  background-opacity: 0.05;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -54,6 +59,5 @@
   .workspace-body:hover {
     border-color: var(--color-primary);
     background-color: var(--color-primary);
-    background-opacity: 0.1;
   }
 }

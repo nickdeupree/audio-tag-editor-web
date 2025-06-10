@@ -25,7 +25,7 @@ export default function InputOption() {
                 size="small"
             >                
                 <ToggleButton value="upload" aria-label="Upload">
-                    Upload
+                    Your File
                 </ToggleButton>                
                 <ToggleButton value="youtube" aria-label="YouTube">
                     YouTube

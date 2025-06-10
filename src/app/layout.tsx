@@ -5,6 +5,11 @@ import { BatchProvider } from "./vars/isBatch";
 import { NumFilesProvider } from './vars/numFiles';
 import { AppThemeProvider } from "./lib/ThemeProvider";
 import { FilesProvider } from "./vars/files";
+import { CurrentFileIndexProvider } from "./vars/currentFileIndex";
+import { AllFilesMetadataProvider } from "./vars/allFilesMetadata";
+import { AddingFileProvider } from "./vars/addingFile";
+import { ThemeContextProvider } from "./contexts/ThemeContext";
+import { ThemeSync } from "./components/ThemeSync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,17 +36,24 @@ export default function RootLayout({
         <meta name="emotion-insertion-point" content="" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <AppThemeProvider>
-          <BatchProvider>
-            <NumFilesProvider>
-              <FilesProvider>
-                {children}
-              </FilesProvider>
-            </NumFilesProvider>
-          </BatchProvider>
-        </AppThemeProvider>
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}      >        <ThemeContextProvider>
+          <ThemeSync />
+          <AppThemeProvider>
+            <BatchProvider>
+              <NumFilesProvider>
+                <FilesProvider>
+                  <CurrentFileIndexProvider>
+                    <AllFilesMetadataProvider>
+                      <AddingFileProvider>
+                        {children}
+                      </AddingFileProvider>
+                    </AllFilesMetadataProvider>
+                  </CurrentFileIndexProvider>
+                </FilesProvider>
+              </NumFilesProvider>
+            </BatchProvider>
+          </AppThemeProvider>
+        </ThemeContextProvider>
       </body>
     </html>
   );

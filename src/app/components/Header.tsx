@@ -5,9 +5,10 @@ import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
+import IconButton from '@mui/material/Button';
 import AccountIcon from './AccountIcon';
 import Avatar from '@mui/material/Avatar';
+import ThemeToggle from './ThemeToggle';
 import { useState } from 'react';
 
 export default function Header() {
@@ -20,7 +21,7 @@ export default function Header() {
             <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
                 Audio Tag Editor
             </Typography>
-            <AccountIcon />
+            <ThemeToggle />
             </Toolbar>
         </AppBar>
         </Box>

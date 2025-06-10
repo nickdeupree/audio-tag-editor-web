@@ -1,17 +1,26 @@
 import React from 'react';
 import { TextField, Button, Typography, Box, CircularProgress } from '@mui/material';
+import { useAddingFile } from '../vars/addingFile';
+import CustomAlert from './CustomAlert';
 
 export default function SoundCloudUrl() {
     const [soundcloudLink, setSoundcloudLink] = React.useState('');
-    const [isDownloading, setIsDownloading] = React.useState(false);
+    const { isAddingFile, setIsAddingFile } = useAddingFile();
+
+    // Alert state
+    const [alertMessage, setAlertMessage] = React.useState<string>('');
+    const [alertSeverity, setAlertSeverity] = React.useState<'error' | 'warning' | 'info' | 'success'>('info');
+    const [showAlert, setShowAlert] = React.useState<boolean>(false);
 
     const handleDownload = async () => {
         if (!soundcloudLink.trim()) {
-            alert('Please enter a SoundCloud URL');
+            setAlertMessage('Please enter a SoundCloud URL');
+            setAlertSeverity('warning');
+            setShowAlert(true);
             return;
         }
 
-        setIsDownloading(true);
+        setIsAddingFile(true);
         try {
             const formData = new FormData();
             formData.append('url', soundcloudLink);
@@ -39,10 +48,11 @@ export default function SoundCloudUrl() {
                         originalUrl: result.original_url
                     } 
                 }));
-                
-                // Clear the input
+                  // Clear the input
                 setSoundcloudLink('');
-                alert('SoundCloud audio downloaded successfully!');
+                setAlertMessage('SoundCloud audio downloaded successfully!');
+                setAlertSeverity('success');
+                setShowAlert(true);
             } else {
                 throw new Error('Download succeeded but no metadata received');
             }
@@ -50,17 +60,16 @@ export default function SoundCloudUrl() {
         } catch (error) {
             console.error('SoundCloud download error:', error);
             const errorMessage = (error instanceof Error) ? error.message : String(error);
-            alert(`Download failed: ${errorMessage}`);
+            setAlertMessage(`Download failed: ${errorMessage}`);
+            setAlertSeverity('error');
+            setShowAlert(true);
         } finally {
-            setIsDownloading(false);
+            setIsAddingFile(false);
         }
     };
 
     return (
         <Box className="flex flex-col items-center space-y-4 p-6">
-            <Typography variant="h6" component="label" style={{ color: 'var(--color-text)' }}>
-                SoundCloud URL
-            </Typography>
             <TextField
                 value={soundcloudLink}
                 onChange={(e) => setSoundcloudLink(e.target.value)}
@@ -68,13 +77,13 @@ export default function SoundCloudUrl() {
                 variant="outlined"
                 size="medium"
                 fullWidth
-                disabled={isDownloading}
+                disabled={isAddingFile}
                 sx={{ maxWidth: '400px', py: 1 }}
             />
             <Button
                 variant="contained"
                 onClick={handleDownload}
-                disabled={isDownloading || !soundcloudLink.trim()}
+                disabled={isAddingFile || !soundcloudLink.trim()}
                 sx={{ 
                     px: 3, 
                     py: 1,
@@ -87,15 +96,22 @@ export default function SoundCloudUrl() {
                     }
                 }}
             >
-                {isDownloading ? (
+                {isAddingFile ? (
                     <>
                         <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} />
                         Downloading...
                     </>
                 ) : (
                     'Download & Edit'
-                )}
-            </Button>
+                )}            </Button>            {showAlert && (
+                <Box sx={{ mt: 2 }}>
+                    <CustomAlert 
+                        message={alertMessage} 
+                        severity={alertSeverity}
+                        onClose={() => setShowAlert(false)}
+                    />
+                </Box>
+            )}
         </Box>
     );
 }

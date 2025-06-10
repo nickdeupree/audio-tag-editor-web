@@ -26,6 +26,7 @@ interface FileMetadata {
 interface AllFilesMetadataContextType {
     allFilesMetadata: FileMetadata[];
     setAllFilesMetadata: (metadata: FileMetadata[]) => void;
+    addFileMetadata: (fileMetadata: FileMetadata) => void;
     updateFileMetadata: (index: number, metadata: AudioMetadata) => void;
     updateAllFilesMetadata: (metadata: AudioMetadata) => void;
     setUpdatedFilename: (index: number, filename: string) => void;
@@ -40,6 +41,10 @@ interface AllFilesMetadataProviderProps {
 
 export function AllFilesMetadataProvider({ children }: AllFilesMetadataProviderProps) {
     const [allFilesMetadata, setAllFilesMetadata] = useState<FileMetadata[]>([]);
+
+    const addFileMetadata = (fileMetadata: FileMetadata) => {
+        setAllFilesMetadata(prev => [...prev, fileMetadata]);
+    };
 
     const updateFileMetadata = (index: number, metadata: AudioMetadata) => {
         setAllFilesMetadata(prev => {
@@ -80,10 +85,10 @@ export function AllFilesMetadataProvider({ children }: AllFilesMetadataProviderP
         setAllFilesMetadata([]);
     };
 
-    return (
-        <AllFilesMetadataContext.Provider value={{ 
+    return (        <AllFilesMetadataContext.Provider value={{ 
             allFilesMetadata,
             setAllFilesMetadata,
+            addFileMetadata,
             updateFileMetadata,
             updateAllFilesMetadata,
             setUpdatedFilename,

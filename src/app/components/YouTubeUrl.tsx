@@ -1,17 +1,26 @@
 import React from 'react';
 import { TextField, Button, Typography, Box, CircularProgress } from '@mui/material';
+import { useAddingFile } from '../vars/addingFile';
+import CustomAlert from './CustomAlert';
 
 export default function YouTubeUrl() {
     const [youtubeLink, setYoutubeLink] = React.useState('');
-    const [isDownloading, setIsDownloading] = React.useState(false);
+    const { isAddingFile, setIsAddingFile } = useAddingFile();
+
+    // Alert state
+    const [alertMessage, setAlertMessage] = React.useState<string>('');
+    const [alertSeverity, setAlertSeverity] = React.useState<'error' | 'warning' | 'info' | 'success'>('info');
+    const [showAlert, setShowAlert] = React.useState<boolean>(false);
 
     const handleDownload = async () => {
         if (!youtubeLink.trim()) {
-            alert('Please enter a YouTube URL');
+            setAlertMessage('Please enter a YouTube URL');
+            setAlertSeverity('warning');
+            setShowAlert(true);
             return;
         }
 
-        setIsDownloading(true);
+        setIsAddingFile(true);
         try {
             const formData = new FormData();
             formData.append('url', youtubeLink);
@@ -39,10 +48,11 @@ export default function YouTubeUrl() {
                         originalUrl: result.original_url
                     } 
                 }));
-                
-                // Clear the input
+                  // Clear the input
                 setYoutubeLink('');
-                alert('YouTube audio downloaded successfully!');
+                setAlertMessage('YouTube audio downloaded successfully!');
+                setAlertSeverity('success');
+                setShowAlert(true);
             } else {
                 throw new Error('Download succeeded but no metadata received');
             }
@@ -50,17 +60,16 @@ export default function YouTubeUrl() {
         } catch (error) {
             console.error('YouTube download error:', error);
             const errorMessage = error instanceof Error ? error.message : String(error);
-            alert(`Download failed: ${errorMessage}`);
+            setAlertMessage(`Download failed: ${errorMessage}`);
+            setAlertSeverity('error');
+            setShowAlert(true);
         } finally {
-            setIsDownloading(false);
+            setIsAddingFile(false);
         }
     };
 
     return (
         <Box className="flex flex-col items-center space-y-4 p-6">
-            <Typography variant="h6" component="label" style={{ color: 'var(--color-text)' }}>
-                YouTube URL
-            </Typography>
             <TextField
                 value={youtubeLink}
                 onChange={(e) => setYoutubeLink(e.target.value)}
@@ -68,25 +77,32 @@ export default function YouTubeUrl() {
                 variant="outlined"
                 size="medium"
                 fullWidth
-                disabled={isDownloading}
+                disabled={isAddingFile}
                 sx={{ maxWidth: '400px', py: 1 }}
             />
             <Button
                 variant="contained"
                 color="error"
                 onClick={handleDownload}
-                disabled={isDownloading || !youtubeLink.trim()}
+                disabled={isAddingFile || !youtubeLink.trim()}
                 sx={{ px: 3, py: 1 }}
             >
-                {isDownloading ? (
+                {isAddingFile ? (
                     <>
                         <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} />
                         Downloading...
                     </>
                 ) : (
                     'Download & Edit'
-                )}
-            </Button>
+                )}            </Button>            {showAlert && (
+                <Box sx={{ mt: 2 }}>
+                    <CustomAlert 
+                        message={alertMessage} 
+                        severity={alertSeverity}
+                        onClose={() => setShowAlert(false)}
+                    />
+                </Box>
+            )}
         </Box>
     );
 }
