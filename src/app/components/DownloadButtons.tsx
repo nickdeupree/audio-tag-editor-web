@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button } from '@mui/material';
 import { SIZES } from '../constants/sizes';
 import { useFiles } from '../vars/files';
 import CustomAlert from './CustomAlert';
@@ -8,10 +8,9 @@ import { getApiUrl, API_CONFIG } from '../config/api';
 interface DownloadButtonsProps {
     updatedFilename?: string | null;
     metadata?: { title?: string; artist?: string; album?: string; };
-    allUpdatedFilenames?: string[];
 }
 
-export default function DownloadButtons({ updatedFilename, metadata, allUpdatedFilenames }: DownloadButtonsProps) {
+export default function DownloadButtons({ updatedFilename, metadata }: DownloadButtonsProps) {
     const { files } = useFiles();
     
     // Alert state

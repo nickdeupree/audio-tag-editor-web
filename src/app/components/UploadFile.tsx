@@ -1,8 +1,6 @@
 import React from 'react';
 import { Button, Box, Typography } from '@mui/material';
-import { styled } from '@mui/material/styles';
 import { useDropzone } from 'react-dropzone';
-import UploadIcon from '@mui/icons-material/Upload';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CustomAlert from './CustomAlert';
 import { useBatch } from '../vars/isBatch';
@@ -10,18 +8,6 @@ import { useNumFiles } from '../vars/numFiles';
 import { useFiles } from '../vars/files';
 import { useAddingFile } from '../vars/addingFile';
 import { getApiUrl, API_CONFIG } from '../config/api';
-
-const VisuallyHiddenInput = styled('input')({
-  clip: 'rect(0 0 0 0)',
-  clipPath: 'inset(50%)',
-  height: 1,
-  overflow: 'hidden',
-  position: 'absolute',
-  bottom: 0,
-  left: 0,
-  whiteSpace: 'nowrap',
-  width: 1,
-});
 
 export default function UploadFile() {
     const { setFiles } = useFiles();
@@ -102,16 +88,15 @@ export default function UploadFile() {
                     setAlertMessage(`Upload failed: ${errorText}`);
                     setAlertSeverity('error');
                     setShowAlert(true);
-                }
-            } catch (uploadError: any) {
+                }            } catch (uploadError: unknown) {
                 console.error('Error uploading files:', uploadError);
-                setAlertMessage(`Upload error: ${uploadError?.message || 'Unknown upload error'}`);
+                setAlertMessage(`Upload error: ${uploadError instanceof Error ? uploadError.message : 'Unknown upload error'}`);
                 setAlertSeverity('error');
                 setShowAlert(true);
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('General error in file upload:', error);
-            setAlertMessage(`Error: ${error?.message || 'Unknown error'}`);
+            setAlertMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
             setAlertSeverity('error');
             setShowAlert(true);
         } finally {

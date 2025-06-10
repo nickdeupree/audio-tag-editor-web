@@ -5,7 +5,6 @@ import { Button } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import OptionsColumn from './OptionsColumn';
 import InputOption from './InputOption';
-import UploadFile from './UploadFile';
 import TagEditorSpace from './TagEditorSpace';
 import { useFiles } from '../vars/files';
 import { useAllFilesMetadata } from '../vars/allFilesMetadata';
@@ -13,7 +12,7 @@ import { useCurrentFileIndex } from '../vars/currentFileIndex';
 import { useAddingFile } from '../vars/addingFile';
 
 export default function Workspace() {
-    const { files, setFiles } = useFiles();
+    const { setFiles } = useFiles();
     const { allFilesMetadata, addFileMetadata, setAllFilesMetadata } = useAllFilesMetadata();
     const { setCurrentIndex } = useCurrentFileIndex();
     const { isAddingFile } = useAddingFile();
@@ -22,13 +21,12 @@ export default function Workspace() {
     const hasFiles = (allFilesMetadata && allFilesMetadata.length > 0) || isAddingFile;
 
     // Listen for metadata loaded events from YouTube/SoundCloud downloads
-    React.useEffect(() => {
-        const handleMetadataLoaded = (event: CustomEvent) => {
-            const { metadata: newMetadata, filename, platform: filePlatform, originalUrl: fileOriginalUrl, all_files_metadata } = event.detail;
+    React.useEffect(() => {        const handleMetadataLoaded = (event: CustomEvent) => {
+            const { metadata: newMetadata, filename, platform: filePlatform, all_files_metadata } = event.detail;
             
             if (all_files_metadata && all_files_metadata.length > 0) {
                 // Handle multiple files (file upload)
-                const fileMetadataArray = all_files_metadata.map((fileData: any) => ({
+                const fileMetadataArray = all_files_metadata.map((fileData: { filename: string; metadata: Record<string, unknown> }) => ({
                     filename: fileData.filename,
                     metadata: fileData.metadata,
                     isDownloaded: false

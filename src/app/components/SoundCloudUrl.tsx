@@ -1,5 +1,5 @@
 import React from 'react';
-import { TextField, Button, Typography, Box, CircularProgress } from '@mui/material';
+import { TextField, Button, Box, CircularProgress } from '@mui/material';
 import { useAddingFile } from '../vars/addingFile';
 import CustomAlert from './CustomAlert';
 import { getApiUrl, API_CONFIG } from '../config/api';
