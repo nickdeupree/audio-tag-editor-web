@@ -9,6 +9,7 @@ import { useBatch } from '../vars/isBatch';
 import { useNumFiles } from '../vars/numFiles';
 import { useFiles } from '../vars/files';
 import { useAddingFile } from '../vars/addingFile';
+import { getApiUrl, API_CONFIG } from '../config/api';
 
 const VisuallyHiddenInput = styled('input')({
   clip: 'rect(0 0 0 0)',
@@ -66,11 +67,9 @@ export default function UploadFile() {
                 // Append all files to the 'files' field
                 for (let i = 0; i < stagedFiles.length; i++) {
                     formData.append('files', stagedFiles[i]);
-                }
+                }                console.log(`Uploading ${stagedFiles.length} file(s)`);
 
-                console.log(`Uploading ${stagedFiles.length} file(s)`);
-
-                const response = await fetch('http://localhost:8000/upload/', {
+                const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.UPLOAD), {
                     method: 'POST',
                     body: formData,
                 });

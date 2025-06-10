@@ -2,6 +2,7 @@ import React from 'react';
 import { TextField, Button, Typography, Box, CircularProgress } from '@mui/material';
 import { useAddingFile } from '../vars/addingFile';
 import CustomAlert from './CustomAlert';
+import { getApiUrl, API_CONFIG } from '../config/api';
 
 export default function YouTubeUrl() {
     const [youtubeLink, setYoutubeLink] = React.useState('');
@@ -23,9 +24,7 @@ export default function YouTubeUrl() {
         setIsAddingFile(true);
         try {
             const formData = new FormData();
-            formData.append('url', youtubeLink);
-
-            const response = await fetch('http://localhost:8000/upload/download/youtube', {
+            formData.append('url', youtubeLink);            const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.DOWNLOAD_YOUTUBE), {
                 method: 'POST',
                 body: formData,
             });

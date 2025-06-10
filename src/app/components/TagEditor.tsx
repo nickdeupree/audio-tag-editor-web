@@ -9,6 +9,7 @@ import { useNumFiles } from '../vars/numFiles';
 import { useFiles } from '../vars/files';
 import { useCurrentFileIndex } from '../vars/currentFileIndex';
 import { useAllFilesMetadata } from '../vars/allFilesMetadata';
+import { getApiUrl, API_CONFIG } from '../config/api';
 
 interface AudioMetadata {
     title?: string;
@@ -228,8 +229,7 @@ export default function TagEditor() {
             
             console.log('Auto-saving metadata:', metadataToSend);
             formData.append('metadata', JSON.stringify(metadataToSend));
-            
-            const response = await fetch('http://localhost:8000/upload/update-tags', {
+              const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.UPDATE_TAGS), {
                 method: 'POST',
                 body: formData
             });

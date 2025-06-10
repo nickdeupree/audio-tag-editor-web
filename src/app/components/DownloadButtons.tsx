@@ -3,6 +3,7 @@ import { Box, Button, Typography } from '@mui/material';
 import { SIZES } from '../constants/sizes';
 import { useFiles } from '../vars/files';
 import CustomAlert from './CustomAlert';
+import { getApiUrl, API_CONFIG } from '../config/api';
 
 interface DownloadButtonsProps {
     updatedFilename?: string | null;
@@ -18,15 +19,14 @@ export default function DownloadButtons({ updatedFilename, metadata, allUpdatedF
     const [alertSeverity, setAlertSeverity] = React.useState<'error' | 'warning' | 'info' | 'success'>('info');
     const [showAlert, setShowAlert] = React.useState<boolean>(false);
     
-    const handleDownload = async () => {
-        try {
+    const handleDownload = async () => {        try {
             let downloadUrl;
             if (updatedFilename) {
                 // Download specific updated file
-                downloadUrl = `http://localhost:8000/upload/download/${updatedFilename}`;
+                downloadUrl = `${getApiUrl(API_CONFIG.ENDPOINTS.DOWNLOAD_FILE)}/${updatedFilename}`;
             } else {
                 // Fallback to latest updated file
-                downloadUrl = 'http://localhost:8000/upload/download-latest';
+                downloadUrl = getApiUrl(API_CONFIG.ENDPOINTS.DOWNLOAD_LATEST);
             }
             
             const response = await fetch(downloadUrl);
@@ -75,7 +75,7 @@ export default function DownloadButtons({ updatedFilename, metadata, allUpdatedF
 
     const handleDownloadAll = async () => {
         try {
-            const downloadUrl = 'http://localhost:8000/upload/download-all';
+            const downloadUrl = getApiUrl(API_CONFIG.ENDPOINTS.DOWNLOAD_ALL);
             
             const response = await fetch(downloadUrl);
             

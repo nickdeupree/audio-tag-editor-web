@@ -3,10 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(request: NextRequest) {
   try {
     // Get the form data from the request
-    const formData = await request.formData();
-
-    // Forward the request to the Python backend
-    const pythonBackendUrl = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+    const formData = await request.formData();    // Forward the request to the Python backend
+    const pythonBackendUrl = process.env.PYTHON_BACKEND_URL || 'https://audio-tag-editor-web.onrender.com';
     
     const response = await fetch(`${pythonBackendUrl}/upload/update-downloaded-tags`, {
       method: 'POST',

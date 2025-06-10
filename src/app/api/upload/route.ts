@@ -15,10 +15,8 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       backendFormData.append('files', file);
-    }
-
-    // Send files to Python backend
-    const pythonBackendUrl = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+    }    // Send files to Python backend
+    const pythonBackendUrl = process.env.PYTHON_BACKEND_URL || 'https://audio-tag-editor-web.onrender.com';
     
     const response = await fetch(`${pythonBackendUrl}/upload`, {
       method: 'POST',
