@@ -1,0 +1,1 @@
+Idea: Add caching of images.
