@@ -45,3 +45,5 @@ __pycache__/
 
 # venv
 venv/
+
+VERCEL_PAYLOAD_WORKAROUND

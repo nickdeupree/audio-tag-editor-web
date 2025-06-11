@@ -1,13 +1,28 @@
-const getBaseUrl = () => {
-  // For Next.js API routes, always use relative paths
-  return '';
+/**
+ * API Configuration for Audio Tag Editor
+ * 
+ * This configuration handles Vercel's 4.5MB serverless function payload limit
+ * by using a hybrid approach:
+ * 
+ * 1. File uploads go directly to the backend (bypasses Vercel limits)
+ * 2. Other operations use Next.js API routes (better error handling)
+ */
+
+const getDirectBackendUrl = () => {
+  // For direct backend calls (file uploads), use the full backend URL
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.NEXT_PUBLIC_API_URL || 'https://audio-tag-editor-web.onrender.com';
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 };
 
 export const API_CONFIG = {
-  BASE_URL: getBaseUrl(),
+  BASE_URL: '',
+  DIRECT_BACKEND_URL: getDirectBackendUrl(),
   ENDPOINTS: {
-    UPLOAD: '/api/upload',
+    UPLOAD: '/upload/',
     UPDATE_TAGS: '/api/upload/update-tags',
+    COVER_ART: '/api/upload/cover-art',
     DOWNLOAD_YOUTUBE: '/api/upload/download/youtube',
     DOWNLOAD_SOUNDCLOUD: '/api/upload/download/soundcloud',
     DOWNLOAD_FILE: '/api/upload/download',
@@ -17,6 +32,10 @@ export const API_CONFIG = {
 };
 
 export const getApiUrl = (endpoint: string) => {
-  // All endpoints are now Next.js API routes, so just return the endpoint
+  // For file uploads, use direct backend URL to bypass Vercel payload limits
+  if (endpoint === API_CONFIG.ENDPOINTS.UPLOAD) {
+    return `${API_CONFIG.DIRECT_BACKEND_URL}${endpoint}`;
+  }
+  // For other operations, use Next.js API routes
   return endpoint;
 };
