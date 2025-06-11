@@ -1,9 +1,6 @@
 const getBaseUrl = () => {
-  // In production, use the production URL, otherwise fall back to localhost
-  if (process.env.NODE_ENV === 'production') {
-    return process.env.NEXT_PUBLIC_API_URL || 'https://audio-tag-editor-web.onrender.com';
-  }
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  // For Next.js API routes, always use relative paths
+  return '';
 };
 
 export const API_CONFIG = {
@@ -20,10 +17,6 @@ export const API_CONFIG = {
 };
 
 export const getApiUrl = (endpoint: string) => {
-  // For Next.js API routes, use relative URLs
-  if (endpoint.startsWith('/api/')) {
-    return endpoint;
-  }
-  // For direct backend calls (download endpoints), use the full URL
-  return `${API_CONFIG.BASE_URL}${endpoint}`;
+  // All endpoints are now Next.js API routes, so just return the endpoint
+  return endpoint;
 };

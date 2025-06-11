@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Forward the request to the Python backend
     const pythonBackendUrl = process.env.PYTHON_BACKEND_URL || 
