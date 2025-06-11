@@ -80,8 +80,7 @@ class AudioService:
             
             if audio_file is None:
                 raise ValueError("Unable to read audio file - it may be corrupted or in an unsupported format")
-            
-            # Update tags based on file type
+              # Update tags based on file type
             if hasattr(audio_file, 'tags') and audio_file.tags is not None:
                 # For MP3 files
                 if metadata.title:
@@ -90,6 +89,8 @@ class AudioService:
                     audio_file.tags['TPE1'] = mutagen.id3.TPE1(encoding=3, text=metadata.artist)
                 if metadata.album:
                     audio_file.tags['TALB'] = mutagen.id3.TALB(encoding=3, text=metadata.album)
+                if metadata.year:
+                    audio_file.tags['TDRC'] = mutagen.id3.TDRC(encoding=3, text=str(metadata.year))
                 if metadata.genre:
                     audio_file.tags['TCON'] = mutagen.id3.TCON(encoding=3, text=metadata.genre)
                 if hasattr(metadata, 'track') and metadata.track:
@@ -103,19 +104,11 @@ class AudioService:
                 # Remove existing cover art if cover_art is None or empty
                 print("DEBUG: Removing cover art")
                 self._remove_cover_art_inline(audio_file)
-            
             audio_file.save()
             return True
             
         except Exception as e:
             logger.error(f"Error updating metadata: {str(e)}")
-            # Clean up temp file if it exists and is corrupted
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                    logger.debug(f"Cleaned up corrupted temp file: {file_path}")
-                except:
-                    pass
             raise ValueError(f"Error updating audio file: {str(e)}")
     
     def _update_cover_art_inline(self, audio_file, cover_art_b64: str, mime_type: str):

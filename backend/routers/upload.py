@@ -113,8 +113,7 @@ async def update_audio_tags(
         )
         
         print(f"DEBUG: Created AudioMetadata object: {audio_metadata}")
-        
-        # Create a temporary file
+          # Create a temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
             content = await file.read()
             temp_file.write(content)
@@ -124,12 +123,44 @@ async def update_audio_tags(
         
         # Update metadata
         audio_service = AudioService()
+        print(f"DEBUG: About to call update_metadata with file: {temp_file_path}")
+        print(f"DEBUG: File exists: {os.path.exists(temp_file_path)}")
+        print(f"DEBUG: File size: {os.path.getsize(temp_file_path) if os.path.exists(temp_file_path) else 'N/A'}")
+        
         success = audio_service.update_metadata(temp_file_path, audio_metadata)
+        print(f"DEBUG: update_metadata returned: {success}")
         
         if success:
             # Create a directory to store updated files
-            updated_files_dir = "/tmp/updated_audio_files"
-            os.makedirs(updated_files_dir, exist_ok=True)
+            # Try multiple locations in case /tmp has issues
+            possible_dirs = [
+                "/tmp/updated_audio_files",
+                "/app/updated_audio_files",  # Common for containerized environments
+                "./updated_audio_files",     # Relative to working directory
+                os.path.join(os.getcwd(), "updated_audio_files")  # Absolute path from working dir
+            ]
+            
+            updated_files_dir = None
+            for dir_path in possible_dirs:
+                try:
+                    os.makedirs(dir_path, exist_ok=True)
+                    # Test write permissions
+                    test_file = os.path.join(dir_path, "test_write.tmp")
+                    with open(test_file, 'w') as f:
+                        f.write("test")
+                    os.remove(test_file)
+                    updated_files_dir = dir_path
+                    print(f"DEBUG: Successfully using directory: {updated_files_dir}")
+                    break
+                except Exception as e:
+                    print(f"DEBUG: Failed to use directory {dir_path}: {e}")
+                    continue
+            
+            if not updated_files_dir:
+                raise HTTPException(status_code=500, detail="Could not create writable directory for updated files")
+            
+            print(f"DEBUG: Creating/checking directory: {updated_files_dir}")
+            print(f"DEBUG: Directory created/exists: {os.path.exists(updated_files_dir)}")
             
             # Store the updated file with a unique name
             import time
@@ -137,17 +168,25 @@ async def update_audio_tags(
             updated_filename = f"updated_{timestamp}_{file.filename}"
             updated_file_path = os.path.join(updated_files_dir, updated_filename)
             
+            print(f"DEBUG: About to copy from {temp_file_path} to {updated_file_path}")
             # Copy the updated file to the storage location
             import shutil
             shutil.copy2(temp_file_path, updated_file_path)
             
+            print(f"DEBUG: Copy completed. File exists: {os.path.exists(updated_file_path)}")
+            print(f"DEBUG: Copied file size: {os.path.getsize(updated_file_path) if os.path.exists(updated_file_path) else 'N/A'}")
             print(f"DEBUG: Successfully updated and saved file: {updated_file_path}")
+            
+            # List all files in the directory for debugging
+            all_files_in_dir = os.listdir(updated_files_dir)
+            print(f"DEBUG: All files in {updated_files_dir}: {all_files_in_dir}")
             
             return JSONResponse(content={
                 "success": True,
                 "message": "Tags updated successfully",
                 "filename": file.filename,
-                "updated_filename": updated_filename
+                "updated_filename": updated_filename,
+                "storage_directory": updated_files_dir  # Include this for debugging
             })
         else:
             raise HTTPException(status_code=500, detail="Failed to update tags")
@@ -267,19 +306,46 @@ async def download_file(filename: str):
 @router.get("/download-latest")
 async def download_latest_updated_file():
     """Download the most recently updated audio file."""
-    updated_files_dir = "/tmp/updated_audio_files"
+    # Try multiple locations where files might be stored
+    possible_dirs = [
+        "/tmp/updated_audio_files",
+        "/app/updated_audio_files",
+        "./updated_audio_files",
+        os.path.join(os.getcwd(), "updated_audio_files")
+    ]
     
-    print(f"DEBUG: Checking directory: {updated_files_dir}")
+    updated_files_dir = None
+    for dir_path in possible_dirs:
+        if os.path.exists(dir_path):
+            files_in_dir = os.listdir(dir_path)
+            if files_in_dir:  # Directory exists and has files
+                updated_files_dir = dir_path
+                print(f"DEBUG: Found files in directory: {dir_path}")
+                break
+            else:
+                print(f"DEBUG: Directory {dir_path} exists but is empty")
+    
+    if not updated_files_dir:
+        print("DEBUG: No updated files directory found with files")
+        # List what we found for debugging
+        for dir_path in possible_dirs:
+            print(f"DEBUG: Checking {dir_path} - exists: {os.path.exists(dir_path)}")
+            if os.path.exists(dir_path):
+                print(f"DEBUG: Contents: {os.listdir(dir_path)}")
+        raise HTTPException(status_code=404, detail="No updated files available")
+    
+    print(f"DEBUG: Using directory: {updated_files_dir}")
     print(f"DEBUG: Directory exists: {os.path.exists(updated_files_dir)}")
-    
-    if not os.path.exists(updated_files_dir):
-        print("DEBUG: Directory does not exist, creating it...")
-        os.makedirs(updated_files_dir, exist_ok=True)
-        raise HTTPException(status_code=404, detail="No updated files available - directory was empty")
     
     # Find files that start with "updated_" or any audio files
     all_files = os.listdir(updated_files_dir)
     print(f"DEBUG: All files in directory: {all_files}")
+    
+    # Check directory permissions
+    import stat
+    dir_stat = os.stat(updated_files_dir)
+    print(f"DEBUG: Directory permissions: {oct(dir_stat.st_mode)}")
+    print(f"DEBUG: Directory owner: {dir_stat.st_uid}")
     
     # Look for updated files first
     updated_files = [f for f in all_files if f.startswith("updated_")]
@@ -292,6 +358,13 @@ async def download_latest_updated_file():
         print(f"DEBUG: Audio files found: {audio_files}")
         
         if not audio_files:
+            # Let's also check what's in the parent /tmp directory
+            try:
+                tmp_contents = os.listdir("/tmp")
+                print(f"DEBUG: Contents of /tmp directory: {tmp_contents}")
+            except Exception as e:
+                print(f"DEBUG: Error listing /tmp: {e}")
+                
             raise HTTPException(status_code=404, detail="No audio files available for download")
         
         # Use the most recent audio file
@@ -467,6 +540,55 @@ async def download_soundcloud_audio(url: str = Form(...)):
                 download_service.cleanup_download(downloaded_file_path)
             except Exception:
                 pass
+
+@router.get("/debug/files")
+async def debug_files():
+    """Debug endpoint to check file system state."""
+    possible_dirs = [
+        "/tmp/updated_audio_files",
+        "/app/updated_audio_files",
+        "./updated_audio_files",
+        os.path.join(os.getcwd(), "updated_audio_files")
+    ]
+    
+    debug_info = {
+        "possible_directories": [],
+        "working_dir": os.getcwd(),
+        "user_info": {},
+        "tmp_contents": []
+    }
+    
+    for dir_path in possible_dirs:
+        dir_info = {
+            "path": dir_path,
+            "exists": os.path.exists(dir_path),
+            "files": [],
+            "error": None
+        }
+        
+        try:
+            if os.path.exists(dir_path):
+                dir_info["files"] = os.listdir(dir_path)
+                dir_stat = os.stat(dir_path)
+                dir_info["permissions"] = oct(dir_stat.st_mode)
+                dir_info["owner"] = dir_stat.st_uid
+        except Exception as e:
+            dir_info["error"] = str(e)
+            
+        debug_info["possible_directories"].append(dir_info)
+    
+    try:
+        debug_info["tmp_contents"] = os.listdir("/tmp")[:20]  # Limit to first 20 items
+    except Exception as e:
+        debug_info["tmp_error"] = str(e)
+    
+    try:
+        import getpass
+        debug_info["user_info"]["username"] = getpass.getuser()
+    except Exception as e:
+        debug_info["user_info"]["error"] = str(e)
+    
+    return JSONResponse(content=debug_info)
 
 @router.get("/test-download")
 async def test_download_service():
