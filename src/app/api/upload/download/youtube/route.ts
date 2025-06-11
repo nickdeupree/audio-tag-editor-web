@@ -3,13 +3,15 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(request: NextRequest) {
   try {
     // Get the form data from the request
-    const formData = await request.formData();    // Forward the request to the Python backend
+    const formData = await request.formData();
+
+    // Forward the request to the Python backend
     const pythonBackendUrl = process.env.PYTHON_BACKEND_URL || 
       (process.env.NODE_ENV === 'production' 
         ? 'https://audio-tag-editor-web.onrender.com' 
         : 'http://localhost:8000');
     
-    const response = await fetch(`${pythonBackendUrl}/upload/update-downloaded-tags`, {
+    const response = await fetch(`${pythonBackendUrl}/upload/download/youtube`, {
       method: 'POST',
       body: formData,
     });
@@ -21,24 +23,24 @@ export async function POST(request: NextRequest) {
       try {
         const errorJson = JSON.parse(errorText);
         return NextResponse.json(
-          { error: errorJson.detail || 'Failed to update downloaded file metadata' }, 
+          { error: errorJson.detail || 'Failed to download YouTube audio' }, 
           { status: response.status }
         );
       } catch {
         return NextResponse.json(
-          { error: errorText || 'Failed to update downloaded file metadata' }, 
+          { error: errorText || 'Failed to download YouTube audio' }, 
           { status: response.status }
         );
       }
     }
 
-    // For downloaded files, we expect a JSON response instead of a blob
+    // YouTube downloads should return JSON with metadata
     const responseData = await response.json();
     
     return NextResponse.json(responseData);
 
   } catch (error) {
-    console.error('Error updating downloaded file metadata:', error);
+    console.error('Error downloading YouTube audio:', error);
     return NextResponse.json(
       { error: 'Internal server error' }, 
       { status: 500 }
