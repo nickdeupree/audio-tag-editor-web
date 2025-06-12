@@ -308,100 +308,70 @@ async def download_latest_updated_file():
     """Download the most recently updated audio file."""
     # Try multiple locations where files might be stored
     possible_dirs = [
-        "/tmp/updated_audio_files",
+        "/tmp/updated_audio_files",     # For updated files
+        "/tmp/downloaded_audio_files",  # For YouTube/SoundCloud downloads
         "/app/updated_audio_files",
+        "/app/downloaded_audio_files",
         "./updated_audio_files",
-        os.path.join(os.getcwd(), "updated_audio_files")
+        "./downloaded_audio_files",
+        os.path.join(os.getcwd(), "updated_audio_files"),
+        os.path.join(os.getcwd(), "downloaded_audio_files")
     ]
     
-    updated_files_dir = None
+    all_available_files = []
+    
     for dir_path in possible_dirs:
         if os.path.exists(dir_path):
             files_in_dir = os.listdir(dir_path)
-            if files_in_dir:  # Directory exists and has files
-                updated_files_dir = dir_path
-                print(f"DEBUG: Found files in directory: {dir_path}")
-                break
-            else:
-                print(f"DEBUG: Directory {dir_path} exists but is empty")
+            audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
+            audio_files = [f for f in files_in_dir if f.lower().endswith(audio_extensions)]
+            
+            print(f"DEBUG: Checking {dir_path} - exists: True, audio files: {audio_files}")
+            
+            for file in audio_files:
+                file_path = os.path.join(dir_path, file)
+                if os.path.exists(file_path):
+                    file_info = {
+                        'filename': file,
+                        'full_path': file_path,
+                        'directory': dir_path,
+                        'mtime': os.path.getmtime(file_path)
+                    }
+                    all_available_files.append(file_info)
+                    print(f"DEBUG: Found file: {file} in {dir_path}, mtime: {file_info['mtime']}")
+        else:
+            print(f"DEBUG: Directory {dir_path} does not exist")
     
-    if not updated_files_dir:
-        print("DEBUG: No updated files directory found with files")
+    if not all_available_files:
+        print("DEBUG: No audio files found in any directory")
         # List what we found for debugging
         for dir_path in possible_dirs:
-            print(f"DEBUG: Checking {dir_path} - exists: {os.path.exists(dir_path)}")
             if os.path.exists(dir_path):
-                print(f"DEBUG: Contents: {os.listdir(dir_path)}")
-        raise HTTPException(status_code=404, detail="No updated files available")
+                all_files = os.listdir(dir_path)
+                print(f"DEBUG: {dir_path} contents: {all_files}")
+        raise HTTPException(status_code=404, detail="No audio files available for download")
     
-    print(f"DEBUG: Using directory: {updated_files_dir}")
-    print(f"DEBUG: Directory exists: {os.path.exists(updated_files_dir)}")
+    # Sort by modification time (newest first)
+    all_available_files.sort(key=lambda x: x['mtime'], reverse=True)
+    latest_file_info = all_available_files[0]
     
-    # Find files that start with "updated_" or any audio files
-    all_files = os.listdir(updated_files_dir)
-    print(f"DEBUG: All files in directory: {all_files}")
+    print(f"DEBUG: Latest file selected: {latest_file_info['filename']} from {latest_file_info['directory']}")
+    print(f"DEBUG: File modification time: {latest_file_info['mtime']}")
     
-    # Check directory permissions
-    import stat
-    dir_stat = os.stat(updated_files_dir)
-    print(f"DEBUG: Directory permissions: {oct(dir_stat.st_mode)}")
-    print(f"DEBUG: Directory owner: {dir_stat.st_uid}")
-    
-    # Look for updated files first
-    updated_files = [f for f in all_files if f.startswith("updated_")]
-    print(f"DEBUG: Updated files found: {updated_files}")
-    
-    # If no updated files, look for any audio files
-    if not updated_files:
-        audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
-        audio_files = [f for f in all_files if f.lower().endswith(audio_extensions)]
-        print(f"DEBUG: Audio files found: {audio_files}")
-        
-        if not audio_files:
-            # Let's also check what's in the parent /tmp directory
-            try:
-                tmp_contents = os.listdir("/tmp")
-                print(f"DEBUG: Contents of /tmp directory: {tmp_contents}")
-            except Exception as e:
-                print(f"DEBUG: Error listing /tmp: {e}")
-                
-            raise HTTPException(status_code=404, detail="No audio files available for download")
-        
-        # Use the most recent audio file
-        files_to_check = audio_files
-    else:
-        files_to_check = updated_files
-    
-    if not files_to_check:
-        raise HTTPException(status_code=404, detail="No files available for download")
-    
-    # Sort by creation time (newest first)
-    files_with_time = []
-    for f in files_to_check:
-        file_path = os.path.join(updated_files_dir, f)
-        if os.path.exists(file_path):
-            files_with_time.append((f, os.path.getctime(file_path)))
-    
-    if not files_with_time:
-        raise HTTPException(status_code=404, detail="No accessible files found")
-    
-    # Sort by creation time, newest first
-    files_with_time.sort(key=lambda x: x[1], reverse=True)
-    latest_file = files_with_time[0][0]
-    
-    print(f"DEBUG: Latest file selected: {latest_file}")
-    
-    file_path = os.path.join(updated_files_dir, latest_file)
+    file_path = latest_file_info['full_path']
+    filename = latest_file_info['filename']
     
     # Extract original filename (remove timestamp prefix if it exists)
-    if latest_file.startswith("updated_") and "_" in latest_file:
-        # Format: updated_timestamp_originalname.mp3
-        parts = latest_file.split("_", 2)
-        original_filename = parts[2] if len(parts) > 2 else latest_file
+    if filename.startswith(("updated_", "youtube_", "soundcloud_")) and "_" in filename:
+        # Format: prefix_timestamp_originalname.mp3
+        parts = filename.split("_", 2)
+        original_filename = parts[2] if len(parts) > 2 else filename
     else:
-        original_filename = latest_file
+        original_filename = filename
     
     print(f"DEBUG: Serving file: {file_path} as {original_filename}")
+    print(f"DEBUG: File exists: {os.path.exists(file_path)}")
+    print(f"DEBUG: File size: {os.path.getsize(file_path) if os.path.exists(file_path) else 'N/A'}")
     
     return FileResponse(
         path=file_path, 
@@ -419,17 +389,23 @@ async def download_youtube_audio(url: str = Form(...)):
     
     try:
         # Download the audio
+        print(f"DEBUG: Starting YouTube audio download...")
         download_result = download_service.download_audio(url, output_format='mp3')
         downloaded_file_path = download_result['file_path']
         
         print(f"DEBUG: Downloaded file to: {downloaded_file_path}")
+        print(f"DEBUG: Downloaded file exists: {os.path.exists(downloaded_file_path) if downloaded_file_path else 'N/A'}")
+        print(f"DEBUG: Downloaded file size: {os.path.getsize(downloaded_file_path) if downloaded_file_path and os.path.exists(downloaded_file_path) else 'N/A'}")
         
         # Extract metadata using the audio service
         audio_service = AudioService()
         metadata = audio_service.extract_metadata(downloaded_file_path)
+        print(f"DEBUG: Extracted metadata: {metadata}")
         
         # Enhance metadata with info from download
         download_metadata = download_result['metadata']
+        print(f"DEBUG: Download metadata: {download_metadata}")
+        
         if not metadata.title and download_metadata.get('title'):
             metadata.title = download_metadata['title']
         if not metadata.artist and download_metadata.get('artist'):
@@ -441,19 +417,33 @@ async def download_youtube_audio(url: str = Form(...)):
         if not metadata.genre and download_metadata.get('genre'):
             metadata.genre = download_metadata['genre']
         
+        print(f"DEBUG: Enhanced metadata: {metadata}")
+        
         # Create a directory to store downloaded files
         downloaded_files_dir = "/tmp/downloaded_audio_files"
+        print(f"DEBUG: Creating downloaded files directory: {downloaded_files_dir}")
         os.makedirs(downloaded_files_dir, exist_ok=True)
+        print(f"DEBUG: Directory created/exists: {os.path.exists(downloaded_files_dir)}")
         
         # Store the downloaded file with a unique name
         import time
         timestamp = int(time.time())
-        downloaded_filename = f"youtube_{timestamp}_{download_result['original_title'][:50].replace('/', '_')}.mp3"
+        original_title_clean = download_result['original_title'][:50].replace('/', '_').replace('\\', '_').replace(':', '_').replace('?', '_').replace('*', '_').replace('<', '_').replace('>', '_').replace('|', '_').replace('"', '_')
+        downloaded_filename = f"youtube_{timestamp}_{original_title_clean}.mp3"
         stored_file_path = os.path.join(downloaded_files_dir, downloaded_filename)
+        
+        print(f"DEBUG: Storing file as: {stored_file_path}")
         
         # Copy the downloaded file to the storage location
         import shutil
         shutil.copy2(downloaded_file_path, stored_file_path)
+        
+        print(f"DEBUG: File copied successfully. Stored file exists: {os.path.exists(stored_file_path)}")
+        print(f"DEBUG: Stored file size: {os.path.getsize(stored_file_path) if os.path.exists(stored_file_path) else 'N/A'}")
+        
+        # List all files in the directory
+        all_files_in_dir = os.listdir(downloaded_files_dir)
+        print(f"DEBUG: All files in {downloaded_files_dir}: {all_files_in_dir}")
         
         return AudioUploadResponse(
             success=True,
@@ -485,17 +475,23 @@ async def download_soundcloud_audio(url: str = Form(...)):
     
     try:
         # Download the audio
+        print(f"DEBUG: Starting SoundCloud audio download...")
         download_result = download_service.download_audio(url, output_format='mp3')
         downloaded_file_path = download_result['file_path']
         
         print(f"DEBUG: Downloaded file to: {downloaded_file_path}")
+        print(f"DEBUG: Downloaded file exists: {os.path.exists(downloaded_file_path) if downloaded_file_path else 'N/A'}")
+        print(f"DEBUG: Downloaded file size: {os.path.getsize(downloaded_file_path) if downloaded_file_path and os.path.exists(downloaded_file_path) else 'N/A'}")
         
         # Extract metadata using the audio service
         audio_service = AudioService()
         metadata = audio_service.extract_metadata(downloaded_file_path)
+        print(f"DEBUG: Extracted metadata: {metadata}")
         
         # Enhance metadata with info from download
         download_metadata = download_result['metadata']
+        print(f"DEBUG: Download metadata: {download_metadata}")
+        
         if not metadata.title and download_metadata.get('title'):
             metadata.title = download_metadata['title']
         if not metadata.artist and download_metadata.get('artist'):
@@ -507,19 +503,33 @@ async def download_soundcloud_audio(url: str = Form(...)):
         if not metadata.genre and download_metadata.get('genre'):
             metadata.genre = download_metadata['genre']
         
+        print(f"DEBUG: Enhanced metadata: {metadata}")
+        
         # Create a directory to store downloaded files
         downloaded_files_dir = "/tmp/downloaded_audio_files"
+        print(f"DEBUG: Creating downloaded files directory: {downloaded_files_dir}")
         os.makedirs(downloaded_files_dir, exist_ok=True)
+        print(f"DEBUG: Directory created/exists: {os.path.exists(downloaded_files_dir)}")
         
         # Store the downloaded file with a unique name
         import time
         timestamp = int(time.time())
-        downloaded_filename = f"soundcloud_{timestamp}_{download_result['original_title'][:50].replace('/', '_')}.mp3"
+        original_title_clean = download_result['original_title'][:50].replace('/', '_').replace('\\', '_').replace(':', '_').replace('?', '_').replace('*', '_').replace('<', '_').replace('>', '_').replace('|', '_').replace('"', '_')
+        downloaded_filename = f"soundcloud_{timestamp}_{original_title_clean}.mp3"
         stored_file_path = os.path.join(downloaded_files_dir, downloaded_filename)
+        
+        print(f"DEBUG: Storing file as: {stored_file_path}")
         
         # Copy the downloaded file to the storage location
         import shutil
         shutil.copy2(downloaded_file_path, stored_file_path)
+        
+        print(f"DEBUG: File copied successfully. Stored file exists: {os.path.exists(stored_file_path)}")
+        print(f"DEBUG: Stored file size: {os.path.getsize(stored_file_path) if os.path.exists(stored_file_path) else 'N/A'}")
+        
+        # List all files in the directory
+        all_files_in_dir = os.listdir(downloaded_files_dir)
+        print(f"DEBUG: All files in {downloaded_files_dir}: {all_files_in_dir}")
         
         return AudioUploadResponse(
             success=True,
