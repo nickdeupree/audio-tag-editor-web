@@ -28,6 +28,8 @@ export const API_CONFIG = {
     DOWNLOAD_FILE: '/api/upload/download',
     DOWNLOAD_LATEST: '/api/upload/download-latest',
     DOWNLOAD_ALL: '/api/upload/download-all',
+    CLEAR_CACHE: '/api/upload/clear-cache',
+    FILES_ALL: '/api/upload/files/all',
   }
 };
 

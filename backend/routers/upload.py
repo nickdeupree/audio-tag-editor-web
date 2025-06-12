@@ -14,6 +14,34 @@ import json
 
 router = APIRouter(prefix="/upload")
 
+def cleanup_old_cached_files():
+    """Clean up old cached files when explicitly requested."""
+    cache_dirs = [
+        "/tmp/downloaded_audio_files",
+        "/app/downloaded_audio_files"
+    ]
+    
+    cleaned_count = 0
+    for dir_path in cache_dirs:
+        if os.path.exists(dir_path):
+            try:
+                files_in_dir = os.listdir(dir_path)
+                audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
+                audio_files = [f for f in files_in_dir if f.lower().endswith(audio_extensions)]
+                
+                for file in audio_files:
+                    file_path = os.path.join(dir_path, file)
+                    try:
+                        os.remove(file_path)
+                        cleaned_count += 1
+                        print(f"DEBUG: Removed cached file: {file_path}")
+                    except Exception as e:
+                        print(f"DEBUG: Failed to remove cached file {file_path}: {e}")
+            except Exception as e:
+                print(f"DEBUG: Failed to clean cache directory {dir_path}: {e}")
+    
+    return cleaned_count
+
 @router.post("/", response_model=AudioUploadResponse)
 async def upload_audio_file(files: List[UploadFile] = File(...)):
     """Upload audio files and extract their metadata."""
@@ -306,27 +334,30 @@ async def download_file(filename: str):
 @router.get("/download-latest")
 async def download_latest_updated_file():
     """Download the most recently updated audio file."""
-    # Try multiple locations where files might be stored
-    possible_dirs = [
-        "/tmp/updated_audio_files",     # For updated files
-        "/tmp/downloaded_audio_files",  # For YouTube/SoundCloud downloads
+    # Prioritized locations - check updated files first, then downloads
+    priority_dirs = [
+        "/tmp/updated_audio_files",     # Highest priority - edited files
         "/app/updated_audio_files",
-        "/app/downloaded_audio_files",
         "./updated_audio_files",
+        os.path.join(os.getcwd(), "updated_audio_files")
+    ]
+    
+    fallback_dirs = [
+        "/tmp/downloaded_audio_files",  # Fallback - original downloads
+        "/app/downloaded_audio_files",
         "./downloaded_audio_files",
-        os.path.join(os.getcwd(), "updated_audio_files"),
         os.path.join(os.getcwd(), "downloaded_audio_files")
     ]
     
-    all_available_files = []
+    audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
     
-    for dir_path in possible_dirs:
+    # First, check priority directories for any files
+    priority_files = []
+    for dir_path in priority_dirs:
         if os.path.exists(dir_path):
             files_in_dir = os.listdir(dir_path)
-            audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
             audio_files = [f for f in files_in_dir if f.lower().endswith(audio_extensions)]
-            
-            print(f"DEBUG: Checking {dir_path} - exists: True, audio files: {audio_files}")
+            print(f"DEBUG: Checking priority dir {dir_path} - audio files: {audio_files}")
             
             for file in audio_files:
                 file_path = os.path.join(dir_path, file)
@@ -335,25 +366,56 @@ async def download_latest_updated_file():
                         'filename': file,
                         'full_path': file_path,
                         'directory': dir_path,
-                        'mtime': os.path.getmtime(file_path)
+                        'mtime': os.path.getmtime(file_path),
+                        'priority': True
                     }
-                    all_available_files.append(file_info)
-                    print(f"DEBUG: Found file: {file} in {dir_path}, mtime: {file_info['mtime']}")
+                    priority_files.append(file_info)
+                    print(f"DEBUG: Found priority file: {file} in {dir_path}, mtime: {file_info['mtime']}")
         else:
-            print(f"DEBUG: Directory {dir_path} does not exist")
+            print(f"DEBUG: Priority directory {dir_path} does not exist")
     
-    if not all_available_files:
-        print("DEBUG: No audio files found in any directory")
-        # List what we found for debugging
-        for dir_path in possible_dirs:
+    # If we found files in priority directories, use those
+    if priority_files:
+        print(f"DEBUG: Found {len(priority_files)} files in priority directories, using newest")
+        priority_files.sort(key=lambda x: x['mtime'], reverse=True)
+        latest_file_info = priority_files[0]
+    else:
+        # Otherwise, check fallback directories
+        print("DEBUG: No files in priority directories, checking fallback directories")
+        fallback_files = []
+        for dir_path in fallback_dirs:
             if os.path.exists(dir_path):
-                all_files = os.listdir(dir_path)
-                print(f"DEBUG: {dir_path} contents: {all_files}")
-        raise HTTPException(status_code=404, detail="No audio files available for download")
-    
-    # Sort by modification time (newest first)
-    all_available_files.sort(key=lambda x: x['mtime'], reverse=True)
-    latest_file_info = all_available_files[0]
+                files_in_dir = os.listdir(dir_path)
+                audio_files = [f for f in files_in_dir if f.lower().endswith(audio_extensions)]
+                print(f"DEBUG: Checking fallback dir {dir_path} - audio files: {audio_files}")
+                
+                for file in audio_files:
+                    file_path = os.path.join(dir_path, file)
+                    if os.path.exists(file_path):
+                        file_info = {
+                            'filename': file,
+                            'full_path': file_path,
+                            'directory': dir_path,
+                            'mtime': os.path.getmtime(file_path),
+                            'priority': False
+                        }
+                        fallback_files.append(file_info)
+                        print(f"DEBUG: Found fallback file: {file} in {dir_path}, mtime: {file_info['mtime']}")
+            else:
+                print(f"DEBUG: Fallback directory {dir_path} does not exist")
+        
+        if not fallback_files:
+            print("DEBUG: No audio files found in any directory")
+            # List what we found for debugging
+            all_dirs = priority_dirs + fallback_dirs
+            for dir_path in all_dirs:
+                if os.path.exists(dir_path):
+                    all_files = os.listdir(dir_path)
+                    print(f"DEBUG: {dir_path} contents: {all_files}")
+            raise HTTPException(status_code=404, detail="No audio files available for download")
+        
+        fallback_files.sort(key=lambda x: x['mtime'], reverse=True)
+        latest_file_info = fallback_files[0]
     
     print(f"DEBUG: Latest file selected: {latest_file_info['filename']} from {latest_file_info['directory']}")
     print(f"DEBUG: File modification time: {latest_file_info['mtime']}")
@@ -625,32 +687,77 @@ async def test_download_service():
 
 @router.get("/download-all")
 async def download_all_updated_files():
-    """Download all updated audio files as a zip archive."""
+    """Download all audio files as a zip archive."""
     import zipfile
     import tempfile
     import shutil
     
-    updated_files_dir = "/tmp/updated_audio_files"
+    # Prioritized locations - check updated files first, then downloads
+    priority_dirs = [
+        "/tmp/updated_audio_files",     # Highest priority - edited files
+        "/app/updated_audio_files",
+        "./updated_audio_files",
+        os.path.join(os.getcwd(), "updated_audio_files")
+    ]
     
-    print(f"DEBUG: Checking directory for download-all: {updated_files_dir}")
-    print(f"DEBUG: Directory exists: {os.path.exists(updated_files_dir)}")
+    fallback_dirs = [
+        "/tmp/downloaded_audio_files",  # Fallback - original downloads
+        "/app/downloaded_audio_files",
+        "./downloaded_audio_files",
+        os.path.join(os.getcwd(), "downloaded_audio_files")
+    ]
     
-    if not os.path.exists(updated_files_dir):
-        print("DEBUG: Directory does not exist, creating it...")
-        os.makedirs(updated_files_dir, exist_ok=True)
-        raise HTTPException(status_code=404, detail="No files available for download")
-    
-    # Find all files (not just updated ones)
-    all_files = os.listdir(updated_files_dir)
-    print(f"DEBUG: All files in directory: {all_files}")
-    
-    # Filter for audio files
     audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
-    audio_files = [f for f in all_files if f.lower().endswith(audio_extensions)]
-    print(f"DEBUG: Audio files found: {audio_files}")
+    all_audio_files = []
+      # First, collect files from priority directories (updated files)
+    for dir_path in priority_dirs:
+        if os.path.exists(dir_path):
+            files_in_dir = os.listdir(dir_path)
+            audio_files = [f for f in files_in_dir if f.lower().endswith(audio_extensions)]
+            print(f"DEBUG: Checking priority dir {dir_path} for download-all - audio files: {audio_files}")
+            
+            for file in audio_files:
+                file_path = os.path.join(dir_path, file)
+                if os.path.exists(file_path):
+                    all_audio_files.append({
+                        'filename': file,
+                        'full_path': file_path,
+                        'directory': dir_path,
+                        'priority': True
+                    })
+        else:
+            print(f"DEBUG: Priority directory {dir_path} does not exist")
     
-    if not audio_files:
-        raise HTTPException(status_code=404, detail="No audio files available for download")
+    # Also collect files from fallback directories (downloaded files) - ALWAYS include these
+    print("DEBUG: Checking fallback directories for additional files")
+    for dir_path in fallback_dirs:
+        if os.path.exists(dir_path):
+            files_in_dir = os.listdir(dir_path)
+            audio_files = [f for f in files_in_dir if f.lower().endswith(audio_extensions)]
+            print(f"DEBUG: Checking fallback dir {dir_path} for download-all - audio files: {audio_files}")
+            
+            for file in audio_files:
+                file_path = os.path.join(dir_path, file)
+                if os.path.exists(file_path):
+                    all_audio_files.append({
+                        'filename': file,
+                        'full_path': file_path,
+                        'directory': dir_path,
+                        'priority': False
+                    })
+        else:
+            print(f"DEBUG: Fallback directory {dir_path} does not exist")
+    
+    if not all_audio_files:
+        print("DEBUG: No audio files found in any directory for download-all")
+        # List what we found for debugging
+        all_dirs = priority_dirs + fallback_dirs
+        for dir_path in all_dirs:
+            if os.path.exists(dir_path):
+                all_files = os.listdir(dir_path)
+                print(f"DEBUG: {dir_path} contents: {all_files}")
+        raise HTTPException(status_code=404, detail="No audio files available for download")    
+    print(f"DEBUG: Found {len(all_audio_files)} total audio files for zip")
     
     # Create a temporary zip file
     temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
@@ -658,10 +765,12 @@ async def download_all_updated_files():
     
     try:
         with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for file in audio_files:
-                file_path = os.path.join(updated_files_dir, file)
+            for file_info in all_audio_files:
+                file = file_info['filename']
+                file_path = file_info['full_path']
+                
                 # Extract original filename (remove timestamp prefix if it exists)
-                if file.startswith("updated_") and "_" in file:
+                if file.startswith(("updated_", "youtube_", "soundcloud_")) and "_" in file:
                     parts = file.split("_", 2)
                     original_filename = parts[2] if len(parts) > 2 else file
                 else:
@@ -683,3 +792,154 @@ async def download_all_updated_files():
         if os.path.exists(temp_zip.name):
             os.unlink(temp_zip.name)
         raise HTTPException(status_code=500, detail=f"Error creating zip file: {str(e)}")
+
+@router.delete("/cleanup/downloads")
+async def cleanup_old_downloads():
+    """Clean up old downloaded files to prevent cache conflicts."""
+    cleanup_dirs = [
+        "/tmp/downloaded_audio_files",
+        "/app/downloaded_audio_files",
+        "./downloaded_audio_files",
+        os.path.join(os.getcwd(), "downloaded_audio_files")
+    ]
+    
+    cleaned_files = []
+    errors = []
+    
+    for dir_path in cleanup_dirs:
+        if os.path.exists(dir_path):
+            try:
+                files_in_dir = os.listdir(dir_path)
+                audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
+                audio_files = [f for f in files_in_dir if f.lower().endswith(audio_extensions)]
+                
+                print(f"DEBUG: Cleaning up {len(audio_files)} files from {dir_path}")
+                
+                for file in audio_files:
+                    file_path = os.path.join(dir_path, file)
+                    try:
+                        os.remove(file_path)
+                        cleaned_files.append(file_path)
+                        print(f"DEBUG: Deleted {file_path}")
+                    except Exception as e:
+                        error_msg = f"Failed to delete {file_path}: {str(e)}"
+                        errors.append(error_msg)
+                        print(f"DEBUG: {error_msg}")
+                        
+            except Exception as e:
+                error_msg = f"Failed to access directory {dir_path}: {str(e)}"
+                errors.append(error_msg)
+                print(f"DEBUG: {error_msg}")
+    
+    return {
+        "success": True,
+        "cleaned_files": cleaned_files,
+        "files_count": len(cleaned_files),
+        "errors": errors,
+        "message": f"Cleaned up {len(cleaned_files)} cached files"
+    }
+
+@router.post("/clear-cache")
+async def clear_download_cache():
+    """Clear cached downloads to start fresh."""
+    cleaned_count = cleanup_old_cached_files()
+    
+    return {
+        "success": True,
+        "message": f"Cleared {cleaned_count} cached files",
+        "files_cleaned": cleaned_count
+    }
+
+@router.get("/files/all")
+async def get_all_files():
+    """Get all available audio files (both downloaded and uploaded) for frontend pagination."""
+    priority_dirs = [
+        "/tmp/updated_audio_files",     # Updated files (edited metadata)
+        "/app/updated_audio_files",
+        "./updated_audio_files",
+        os.path.join(os.getcwd(), "updated_audio_files")
+    ]
+    
+    download_dirs = [
+        "/tmp/downloaded_audio_files",  # Downloaded files (YouTube/SoundCloud)
+        "/app/downloaded_audio_files",
+        "./downloaded_audio_files",
+        os.path.join(os.getcwd(), "downloaded_audio_files")
+    ]
+    
+    audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac')
+    all_files = []
+    
+    # Collect updated/edited files
+    for dir_path in priority_dirs:
+        if os.path.exists(dir_path):
+            files_in_dir = os.listdir(dir_path)
+            audio_files = [f for f in files_in_dir if f.lower().endswith(audio_extensions)]
+            
+            for file in audio_files:
+                file_path = os.path.join(dir_path, file)
+                if os.path.exists(file_path):
+                    # Extract original filename
+                    original_filename = file
+                    if file.startswith("updated_") and "_" in file:
+                        parts = file.split("_", 2)
+                        original_filename = parts[2] if len(parts) > 2 else file
+                    
+                    file_info = {
+                        'id': f"updated_{file}",
+                        'filename': original_filename,
+                        'stored_filename': file,
+                        'full_path': file_path,
+                        'directory': dir_path,
+                        'type': 'updated',
+                        'platform': 'upload',
+                        'mtime': os.path.getmtime(file_path),
+                        'size': os.path.getsize(file_path)
+                    }
+                    all_files.append(file_info)
+    
+    # Collect downloaded files (YouTube/SoundCloud)
+    for dir_path in download_dirs:
+        if os.path.exists(dir_path):
+            files_in_dir = os.listdir(dir_path)
+            audio_files = [f for f in files_in_dir if f.lower().endswith(audio_extensions)]
+            
+            for file in audio_files:
+                file_path = os.path.join(dir_path, file)
+                if os.path.exists(file_path):
+                    # Extract original filename and platform
+                    original_filename = file
+                    platform = 'download'
+                    
+                    if file.startswith("youtube_") and "_" in file:
+                        parts = file.split("_", 2)
+                        original_filename = parts[2] if len(parts) > 2 else file
+                        platform = 'youtube'
+                    elif file.startswith("soundcloud_") and "_" in file:
+                        parts = file.split("_", 2)
+                        original_filename = parts[2] if len(parts) > 2 else file
+                        platform = 'soundcloud'
+                    
+                    file_info = {
+                        'id': f"download_{file}",
+                        'filename': original_filename,
+                        'stored_filename': file,
+                        'full_path': file_path,
+                        'directory': dir_path,
+                        'type': 'downloaded',
+                        'platform': platform,
+                        'mtime': os.path.getmtime(file_path),
+                        'size': os.path.getsize(file_path)
+                    }
+                    all_files.append(file_info)
+    
+    # Sort by modification time (newest first)
+    all_files.sort(key=lambda x: x['mtime'], reverse=True)
+    
+    return {
+        "success": True,
+        "files": all_files,
+        "total_files": len(all_files),
+        "updated_files": len([f for f in all_files if f['type'] == 'updated']),
+        "downloaded_files": len([f for f in all_files if f['type'] == 'downloaded'])
+    }

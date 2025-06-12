@@ -10,6 +10,7 @@ import { useFiles } from '../vars/files';
 import { useAllFilesMetadata } from '../vars/allFilesMetadata';
 import { useCurrentFileIndex } from '../vars/currentFileIndex';
 import { useAddingFile } from '../vars/addingFile';
+import { getApiUrl, API_CONFIG } from '../config/api';
 
 export default function Workspace() {
     const { setFiles } = useFiles();
@@ -19,6 +20,30 @@ export default function Workspace() {
     
     // Show tag editor when we have any files OR when actively adding files
     const hasFiles = (allFilesMetadata && allFilesMetadata.length > 0) || isAddingFile;
+
+    // Clear cache when component first loads
+    React.useEffect(() => {
+        const clearCacheOnLoad = async () => {
+            try {
+                console.log('Clearing cache on page load...');
+                const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.CLEAR_CACHE), {
+                    method: 'POST',
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Cache cleared on load:', result.message);
+                } else {
+                    console.warn('Cache clear on load failed:', response.status);
+                }
+            } catch (error) {
+                console.warn('Cache clear on load error:', error);
+                // Don't throw error since cache clearing is optional
+            }
+        };
+        
+        clearCacheOnLoad();
+    }, []); // Empty dependency array means this runs once on component mount
 
     // Listen for metadata loaded events from YouTube/SoundCloud downloads
     React.useEffect(() => {        const handleMetadataLoaded = (event: CustomEvent) => {

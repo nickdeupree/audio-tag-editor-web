@@ -18,7 +18,31 @@ export default function DownloadButtons({ updatedFilename, metadata }: DownloadB
     const [alertSeverity, setAlertSeverity] = React.useState<'error' | 'warning' | 'info' | 'success'>('info');
     const [showAlert, setShowAlert] = React.useState<boolean>(false);
     
-    const handleDownload = async () => {        try {
+    // Function to clear download cache
+    const clearCache = async () => {
+        try {
+            console.log('Clearing download cache...');
+            const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.CLEAR_CACHE), {
+                method: 'POST',
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Cache cleared:', result.message);
+            } else {
+                console.warn('Cache clear failed:', response.status);
+            }
+        } catch (error) {
+            console.warn('Cache clear error:', error);
+            // Don't throw error since cache clearing is optional
+        }
+    };
+    
+    const handleDownload = async () => {
+        try {
+            // Clear cache before downloading to ensure fresh files
+            await clearCache();
+            
             let downloadUrl;
             if (updatedFilename) {
                 // Download specific updated file
@@ -64,16 +88,20 @@ export default function DownloadButtons({ updatedFilename, metadata }: DownloadB
             a.click();
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
-              } catch (error) {
+            
+        } catch (error) {
             console.error('Download error:', error);
             setAlertMessage(`Download failed: ${error}`);
             setAlertSeverity('error');
             setShowAlert(true);
         }
     };
-
+    
     const handleDownloadAll = async () => {
         try {
+            // Clear cache before downloading to ensure fresh files
+            await clearCache();
+            
             const downloadUrl = getApiUrl(API_CONFIG.ENDPOINTS.DOWNLOAD_ALL);
             
             const response = await fetch(downloadUrl);
