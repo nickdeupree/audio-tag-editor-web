@@ -1,1 +1,1 @@
-Idea: Add caching of images.
+can't change cover art
