@@ -50,14 +50,20 @@ export default function Workspace() {
             const { metadata: newMetadata, filename, platform: filePlatform, all_files_metadata } = event.detail;
             
             if (all_files_metadata && all_files_metadata.length > 0) {
-                // Handle multiple files (file upload)
-                const fileMetadataArray = all_files_metadata.map((fileData: { filename: string; metadata: Record<string, unknown> }) => ({
-                    filename: fileData.filename,
-                    metadata: fileData.metadata,
-                    isDownloaded: false
-                }));
-                setAllFilesMetadata(fileMetadataArray);
-                setCurrentIndex(0); // Set to first file
+                // Handle multiple files (file upload) - append each file to existing list
+                all_files_metadata.forEach((fileData: { filename: string; metadata: Record<string, unknown> }) => {
+                    const newFileMetadata = {
+                        filename: fileData.filename,
+                        metadata: fileData.metadata,
+                        isDownloaded: false
+                    };
+                    addFileMetadata(newFileMetadata);
+                });
+                
+                // Set current index to the first newly added file if no files existed before
+                if (allFilesMetadata.length === 0) {
+                    setCurrentIndex(0);
+                }
             } else {
                 // Handle single file (YouTube/SoundCloud download)
                 const newFileMetadata = {
@@ -84,6 +90,11 @@ export default function Workspace() {
         setAllFilesMetadata([]);
         setCurrentIndex(0);
         setFiles(null);
+        fetch(getApiUrl(API_CONFIG.ENDPOINTS.CLEAR_CACHE), {
+            method: 'POST',
+        }).catch((error) => {
+            console.warn('Cache clear on close error:', error);
+        });
     }
 
     return (

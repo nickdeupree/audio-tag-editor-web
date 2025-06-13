@@ -441,7 +441,7 @@ export default function TagEditor() {
                             </div>
                         )}
                     </Box>                )
-                }                <DownloadButtons updatedFilename={updatedFilename} metadata={metadata} />
+                }                <DownloadButtons currentIndex={currentIndex} metadata={metadata} />
             </div>{showAlert && (
                 <Box sx={{ mt: 2 }}>
                     <CustomAlert 
