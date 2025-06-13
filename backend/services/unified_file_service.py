@@ -236,7 +236,7 @@ class UnifiedFileService:
                 except Exception:
                     pass
     
-    def update_file_metadata(self, stored_filename: str, metadata: AudioMetadata) -> bool:
+    def update_file_metadata(self, stored_filename: str, metadata: AudioMetadata) -> str:
         """Update metadata for a file in the workspace."""
         file_path = os.path.join(self.WORKSPACE_DIR, stored_filename)
         
@@ -317,6 +317,33 @@ class UnifiedFileService:
                     }
                     all_files.append(file_info)
             
+            # Filter out original files that have updated versions
+            # Create a map of original files to their updated versions
+            updated_files_map = {}
+            for file_info in all_files:
+                if file_info['type'] == 'updated':
+                    # Extract the original filename pattern from updated file
+                    stored_filename = file_info['stored_filename']
+                    if stored_filename.startswith('updated_'):
+                        # Format: updated_timestamp_original_pattern
+                        # Find the original pattern by removing the updated_ prefix and timestamp
+                        parts = stored_filename.split('_', 2)
+                        if len(parts) >= 3:
+                            # The original pattern is everything after the second underscore
+                            original_pattern = parts[2]
+                            updated_files_map[original_pattern] = file_info
+            
+            # Filter out original files that have updated versions
+            filtered_files = []
+            for file_info in all_files:
+                if file_info['type'] in ['uploaded', 'downloaded']:
+                    # Check if this file has an updated version
+                    original_filename = file_info['stored_filename']
+                    if original_filename in updated_files_map:
+                        # Skip this original file, we'll use the updated version
+                        continue
+                filtered_files.append(file_info)
+            
             # Sort by creation timestamp embedded in filename (oldest first to maintain add order)
             # Extract timestamp from filename for proper ordering
             def get_timestamp_from_filename(file_info):
@@ -332,7 +359,8 @@ class UnifiedFileService:
                 # Fallback to modification time if timestamp can't be extracted
                 return file_info['mtime']
             
-            all_files.sort(key=get_timestamp_from_filename)
+            filtered_files.sort(key=get_timestamp_from_filename)
+            all_files = filtered_files
             
             return {
                 "success": True,

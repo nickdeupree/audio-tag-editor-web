@@ -98,12 +98,14 @@ class AudioService:
             
             # Update cover art if provided
             if metadata.cover_art and metadata.cover_art_mime_type:
-                print(f"DEBUG: Updating cover art, mime_type: {metadata.cover_art_mime_type}")
+                logger.debug(f"Updating cover art, mime_type: {metadata.cover_art_mime_type}")
                 self._update_cover_art_inline(audio_file, metadata.cover_art, metadata.cover_art_mime_type)
-            elif metadata.cover_art is None or not metadata.cover_art:
-                # Remove existing cover art if cover_art is None or empty
-                print("DEBUG: Removing cover art")
+            elif hasattr(metadata, 'cover_art') and metadata.cover_art == "": # Explicitly empty string means remove
+                logger.debug("Explicitly removing cover art because cover_art field was an empty string.")
                 self._remove_cover_art_inline(audio_file)
+            # If metadata.cover_art is None (i.e., not present in the request or explicitly set to null from frontend),
+            # it implies no change to the existing cover art is requested. Thus, we do nothing.
+            
             audio_file.save()
             return True
             
@@ -113,17 +115,17 @@ class AudioService:
     
     def _update_cover_art_inline(self, audio_file, cover_art_b64: str, mime_type: str):
         """Update cover art within an already loaded audio file object."""
-        print(f"DEBUG: _update_cover_art_inline called with mime_type: {mime_type}")
-        print(f"DEBUG: Audio file type: {type(audio_file)}")
-        print(f"DEBUG: Has tags: {hasattr(audio_file, 'tags')}")
-        print(f"DEBUG: Has get: {hasattr(audio_file, 'get')}")
-        print(f"DEBUG: Has pictures: {hasattr(audio_file, 'pictures')}")
+        logger.debug(f"_update_cover_art_inline called with mime_type: {mime_type}")
+        logger.debug(f"Audio file type: {type(audio_file)}")
+        logger.debug(f"Has tags: {hasattr(audio_file, 'tags')}")
+        logger.debug(f"Has get: {hasattr(audio_file, 'get')}")
+        logger.debug(f"Has pictures: {hasattr(audio_file, 'pictures')}")
         
         cover_data = base64.b64decode(cover_art_b64)
         
         # Handle different file formats
         if hasattr(audio_file, 'tags') and audio_file.tags is not None:
-            print("DEBUG: Detected MP3/ID3 format")
+            logger.debug("Detected MP3/ID3 format for cover art update")
             # MP3/ID3 tags - remove existing cover art first
             keys_to_remove = [key for key in audio_file.tags.keys() if str(key).startswith('APIC')]
             for key in keys_to_remove:
@@ -139,7 +141,7 @@ class AudioService:
             )
             
         elif hasattr(audio_file, 'get') and hasattr(audio_file, '__setitem__'):
-            print("DEBUG: Detected MP4/M4A format")
+            logger.debug("Detected MP4/M4A format for cover art update")
             # MP4/M4A files
             if mime_type == 'image/png':
                 audio_file['covr'] = [MP4Cover(cover_data, MP4Cover.FORMAT_PNG)]
@@ -147,7 +149,7 @@ class AudioService:
                 audio_file['covr'] = [MP4Cover(cover_data, MP4Cover.FORMAT_JPEG)]
                 
         elif hasattr(audio_file, 'pictures'):
-            print("DEBUG: Detected FLAC format")
+            logger.debug("Detected FLAC format for cover art update")
             # FLAC files
             picture = Picture()
             picture.type = 3  # Cover (front)
@@ -159,37 +161,37 @@ class AudioService:
             audio_file.clear_pictures()
             audio_file.add_picture(picture)
         else:
-            print("DEBUG: Unknown audio file format!")
+            logger.warning("Unknown audio file format for cover art update!")
     
     def _remove_cover_art_inline(self, audio_file):
         """Remove cover art from an already loaded audio file object."""
-        print(f"DEBUG: _remove_cover_art_inline called")
-        print(f"DEBUG: Audio file type: {type(audio_file)}")
+        logger.debug("_remove_cover_art_inline called")
+        logger.debug(f"Audio file type: {type(audio_file)}")
         
         # Handle different file formats
         if hasattr(audio_file, 'tags') and audio_file.tags is not None:
-            print("DEBUG: Removing cover art from MP3/ID3 format")
+            logger.debug("Removing cover art from MP3/ID3 format")
             # MP3/ID3 tags - remove existing cover art
             keys_to_remove = [key for key in audio_file.tags.keys() if str(key).startswith('APIC')]
-            print(f"DEBUG: Found {len(keys_to_remove)} APIC keys to remove")
+            logger.debug(f"Found {len(keys_to_remove)} APIC keys to remove")
             for key in keys_to_remove:
                 del audio_file.tags[key]
                 
         elif hasattr(audio_file, 'get') and hasattr(audio_file, '__setitem__'):
-            print("DEBUG: Removing cover art from MP4/M4A format")
+            logger.debug("Removing cover art from MP4/M4A format")
             # MP4/M4A files - remove cover art
             if 'covr' in audio_file:
-                print("DEBUG: Removing covr tag")
+                logger.debug("Removing covr tag")
                 del audio_file['covr']
             else:
-                print("DEBUG: No covr tag found")
+                logger.debug("No covr tag found to remove")
                 
         elif hasattr(audio_file, 'pictures'):
-            print("DEBUG: Removing cover art from FLAC format")
+            logger.debug("Removing cover art from FLAC format")
             # FLAC files - clear all pictures
             audio_file.clear_pictures()
         else:
-            print("DEBUG: Unknown audio file format for cover art removal!")
+            logger.warning("Unknown audio file format for cover art removal!")
 
     def _extract_cover_art(self, audio_file) -> tuple[str | None, str | None]:
         """Extract cover art from audio file and return as base64 encoded string with MIME type."""

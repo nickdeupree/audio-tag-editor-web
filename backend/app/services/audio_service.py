@@ -78,14 +78,19 @@ class AudioService:
             if hasattr(audio_file, 'tags') and audio_file.tags is not None:
                 # For MP3 files
                 if metadata.title:
+                    print(f"DEBUG: Updating title tag to {metadata.title}")
                     audio_file.tags['TIT2'] = mutagen.id3.TIT2(encoding=3, text=metadata.title)
                 if metadata.artist:
+                    print(f"DEBUG: Updating artist tag to {metadata.artist}")
                     audio_file.tags['TPE1'] = mutagen.id3.TPE1(encoding=3, text=metadata.artist)
                 if metadata.album:
+                    print(f"DEBUG: Updating album tag to {metadata.album}")
                     audio_file.tags['TALB'] = mutagen.id3.TALB(encoding=3, text=metadata.album)
                 if metadata.year:
+                    print(f"DEBUG: Updating year tag to {metadata.year}")
                     audio_file.tags['TDRC'] = mutagen.id3.TDRC(encoding=3, text=str(metadata.year))
                 if metadata.genre:
+                    print(f"DEBUG: Updating genre tag to {metadata.genre}")
                     audio_file.tags['TCON'] = mutagen.id3.TCON(encoding=3, text=metadata.genre)
                 if hasattr(metadata, 'track') and metadata.track:
                     audio_file.tags['TRCK'] = mutagen.id3.TRCK(encoding=3, text=metadata.track)
@@ -100,6 +105,7 @@ class AudioService:
                 self._remove_cover_art_inline(audio_file)
             
             audio_file.save()
+            print("DEBUG: Audio file saved to: ", file_path)
             return True
             
         except Exception as e:

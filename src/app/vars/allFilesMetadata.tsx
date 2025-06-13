@@ -74,7 +74,8 @@ export function AllFilesMetadataProvider({ children }: AllFilesMetadataProviderP
             if (updated[index]) {
                 updated[index] = {
                     ...updated[index],
-                    updatedFilename: filename
+                    updatedFilename: filename, // Keep this for potential reference
+                    storedFilename: filename    // Update storedFilename to the new, updated filename
                 };
             }
             return updated;

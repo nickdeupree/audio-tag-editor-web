@@ -7,7 +7,7 @@ import OptionsColumn from './OptionsColumn';
 import InputOption from './InputOption';
 import TagEditorSpace from './TagEditorSpace';
 import { useFiles } from '../vars/files';
-import { useAllFilesMetadata } from '../vars/allFilesMetadata';
+import { useAllFilesMetadata, FileMetadata } from '../vars/allFilesMetadata';
 import { useCurrentFileIndex } from '../vars/currentFileIndex';
 import { useAddingFile } from '../vars/addingFile';
 import { getApiUrl, API_CONFIG } from '../config/api';
@@ -46,36 +46,44 @@ export default function Workspace() {
     }, []); // Empty dependency array means this runs once on component mount
 
     // Listen for metadata loaded events from YouTube/SoundCloud downloads
-    React.useEffect(() => {        const handleMetadataLoaded = (event: CustomEvent) => {
-            const { metadata: newMetadata, filename, platform: filePlatform, all_files_metadata } = event.detail;
+    React.useEffect(() => {
+        const handleMetadataLoaded = (event: CustomEvent) => {
+            const { metadata: newMetadata, filename, platform: filePlatform, all_files_metadata, stored_filename: singleFileStoredFilename } = event.detail;
             
-            if (all_files_metadata && all_files_metadata.length > 0) {
-                // Handle multiple files (file upload) - append each file to existing list
-                all_files_metadata.forEach((fileData: { filename: string; metadata: Record<string, unknown> }) => {
-                    const newFileMetadata = {
-                        filename: fileData.filename,
-                        metadata: fileData.metadata,
-                        isDownloaded: false
-                    };
-                    addFileMetadata(newFileMetadata);
-                });
+            if (all_files_metadata && Array.isArray(all_files_metadata) && all_files_metadata.length > 0) {
+                // Handle multiple files (file upload)
+                const currentAllFiles = allFilesMetadata; // Capture current state for calculating new index
+                const newFiles: FileMetadata[] = all_files_metadata.map((fileData: any) => ({
+                    filename: fileData.filename,
+                    storedFilename: fileData.stored_filename, 
+                    metadata: fileData.metadata,
+                    isDownloaded: false,
+                    updatedFilename: undefined,
+                    downloadedFrom: undefined,
+                }));
+
+                setAllFilesMetadata([...currentAllFiles, ...newFiles]);
                 
-                // Set current index to the first newly added file if no files existed before
-                if (allFilesMetadata.length === 0) {
-                    setCurrentIndex(0);
+                if (currentAllFiles.length === 0 && newFiles.length > 0) {
+                    setCurrentIndex(0); 
+                } else if (newFiles.length > 0) {
+                    setCurrentIndex(currentAllFiles.length); // Set to the index of the first new file
                 }
-            } else {
+            } else if (filename && newMetadata) {
                 // Handle single file (YouTube/SoundCloud download)
-                const newFileMetadata = {
-                    filename: filename,
+                const currentAllFiles = allFilesMetadata;
+                const newFile: FileMetadata = {
+                    filename: filename, 
+                    storedFilename: singleFileStoredFilename || filename, 
                     metadata: newMetadata,
                     isDownloaded: true,
-                    downloadedFrom: filePlatform || 'unknown'
+                    downloadedFrom: filePlatform || 'unknown',
+                    updatedFilename: undefined,
                 };
                 
-                addFileMetadata(newFileMetadata);
-                // Set current index to the newly added file
-                setCurrentIndex(allFilesMetadata.length);
+                // addFileMetadata already uses the functional update form, so this is fine
+                addFileMetadata(newFile); 
+                setCurrentIndex(currentAllFiles.length); // Set to the index of the newly added file
             }
         };
 
@@ -84,7 +92,9 @@ export default function Workspace() {
         return () => {
             window.removeEventListener('metadataLoaded', handleMetadataLoaded as EventListener);
         };
-    }, [addFileMetadata, setAllFilesMetadata, setCurrentIndex, allFilesMetadata.length]);
+    // Ensure all dependencies that can change the logic are included.
+    // allFilesMetadata itself is a dependency because its length is used to calculate the next index.
+    }, [addFileMetadata, setAllFilesMetadata, setCurrentIndex, allFilesMetadata]);
 
     function closeWorkspace() {
         setAllFilesMetadata([]);

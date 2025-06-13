@@ -200,8 +200,9 @@ export default function TagEditor() {
             return;
         }
 
-        const currentFile = files && files.length > currentIndex ? files[currentIndex] : null;
-        if (!currentFile) {
+        // Check if we have a current file in allFilesMetadata (workspace files)
+        const currentFileMetadata = allFilesMetadata[currentIndex];
+        if (!currentFileMetadata) {
             return;
         }
 
@@ -209,7 +210,6 @@ export default function TagEditor() {
         
         try {
             const formData = new FormData();
-            formData.append('file', currentFile);
             
             // Clean up the metadata object - remove undefined values and handle nulls properly
             const metadataToSend = {
@@ -223,10 +223,36 @@ export default function TagEditor() {
             };
             
             console.log('Auto-saving metadata:', metadataToSend);
-            formData.append('metadata', JSON.stringify(metadataToSend));            const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.UPDATE_TAGS), {
-                method: 'POST',
-                body: formData
-            });
+            formData.append('metadata', JSON.stringify(metadataToSend));
+
+            let apiEndpoint;
+            let response;
+
+            // Check if this is a workspace file (downloaded or already uploaded files)
+            if (currentFileMetadata.storedFilename) {
+                // This is a workspace file - use workspace update endpoint
+                formData.append('stored_filename', currentFileMetadata.storedFilename);
+                apiEndpoint = API_CONFIG.ENDPOINTS.UPDATE_WORKSPACE_TAGS;
+                console.log('Updating workspace file:', currentFileMetadata.storedFilename);
+                response = await fetch(getApiUrl(apiEndpoint), {
+                    method: 'POST',
+                    body: formData
+                });
+            } else {
+                // This is a regular uploaded file - use regular update endpoint
+                const currentFile = files && files.length > currentIndex ? files[currentIndex] : null;
+                if (!currentFile) {
+                    return;
+                }
+                
+                formData.append('file', currentFile);
+                apiEndpoint = API_CONFIG.ENDPOINTS.UPDATE_TAGS;
+                
+                response = await fetch(getApiUrl(apiEndpoint), {
+                    method: 'POST',
+                    body: formData
+                });
+            }
             
             if (!response.ok) {
                 // Try to get more detailed error information
@@ -259,7 +285,7 @@ export default function TagEditor() {
         } finally {
             isAutoSavingRef.current = false;
         }
-    }, [files, currentIndex, setUpdatedFilenameInContext]);
+    }, [files, currentIndex, allFilesMetadata, setUpdatedFilenameInContext]);
 
     // Debounced auto-save function
     const debouncedAutoSave = useCallback((metadataToSave: AudioMetadata) => {

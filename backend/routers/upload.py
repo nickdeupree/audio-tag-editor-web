@@ -10,6 +10,7 @@ from app.services.download_service import DownloadService
 from models.responses import AudioUploadResponse
 from typing import List
 import os
+import logging
 
 router = APIRouter(prefix="/upload")
 
@@ -17,6 +18,9 @@ router = APIRouter(prefix="/upload")
 unified_file_service = UnifiedFileService()
 tag_update_service = TagUpdateService()
 download_service = DownloadService()
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 @router.post("/clear-cache")
 async def clear_download_cache():
@@ -49,19 +53,31 @@ async def update_audio_tags(
     metadata: str = Form(...)
 ):
     """Update audio file tags with new metadata."""
-    result = await tag_update_service.update_file_tags(file, metadata)
-    return JSONResponse(content=result)
+    logger.debug(f"update_audio_tags called. Uploaded filename: {file.filename}")
+    logger.debug(f"Received metadata for update: {metadata}")
+    try:
+        result = await tag_update_service.update_file_tags(file, metadata)
+        logger.debug(f"Tag update result: {result}")
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Error in update_audio_tags for file {file.filename}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error updating file tags: {str(e)}")
 
 @router.post("/update-tags-workspace/{stored_filename}")
-async def update_workspace_file_tags(
+async def update_tags_workspace(
     stored_filename: str,
     metadata: str = Form(...)
 ):
     """Update tags for a file already in the workspace."""
+    logger.info(f"API called to update tags for: {stored_filename}")
+    logger.debug(f"update_tags_workspace called with stored_filename: {stored_filename}")
+    logger.debug(f"Received metadata for workspace update: {metadata}")
     try:
         metadata_obj = tag_update_service.parse_metadata_from_form(metadata)
+        logger.debug(f"Parsed metadata_obj: {metadata_obj}")
         updated_filename = unified_file_service.update_file_metadata(stored_filename, metadata_obj)
         
+        logger.debug(f"File metadata updated. New filename: {updated_filename}")
         return JSONResponse(content={
             "success": True,
             "message": "Tags updated successfully",
@@ -70,6 +86,7 @@ async def update_workspace_file_tags(
         })
         
     except Exception as e:
+        logger.error(f"Error updating tags for {stored_filename}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error updating file tags: {str(e)}")
 
 @router.post("/cover-art")
@@ -96,7 +113,8 @@ async def download_file_by_index(index: int):
     
     file_path = file_info['full_path']
     original_filename = file_info['filename']
-    
+    print("DEBUG: file_path:", file_path)
+    print("DEBUG: original_filename:", original_filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
     
@@ -180,6 +198,24 @@ async def download_file_by_name(filename: str):
     
     # Extract original filename
     original_filename = unified_file_service._extract_original_filename(filename)
+    
+    return FileResponse(
+        path=file_path,
+        filename=original_filename,
+        media_type='application/octet-stream'
+    )
+
+@router.get("/download/{stored_filename}")
+async def download_file(stored_filename: str):
+    """Download a file by its stored filename."""
+    logger.info(f"File downloaded: {stored_filename}")
+    file_path = unified_file_service.get_file_by_stored_filename(stored_filename)
+    
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File not found: {stored_filename}")
+    
+    # Extract original filename
+    original_filename = unified_file_service._extract_original_filename(stored_filename)
     
     return FileResponse(
         path=file_path,

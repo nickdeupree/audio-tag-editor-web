@@ -22,6 +22,7 @@ export const API_CONFIG = {
   ENDPOINTS: {
     UPLOAD: '/upload/',
     UPDATE_TAGS: '/api/upload/update-tags',
+    UPDATE_WORKSPACE_TAGS: '/api/upload/update-workspace-tags',
     COVER_ART: '/api/upload/cover-art',
     DOWNLOAD_YOUTUBE: '/api/upload/download/youtube',
     DOWNLOAD_SOUNDCLOUD: '/api/upload/download/soundcloud',
