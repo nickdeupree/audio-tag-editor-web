@@ -4,7 +4,6 @@ import { useDropzone } from 'react-dropzone';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CustomAlert from './CustomAlert';
 import { useBatch } from '../vars/isBatch';
-import { useNumFiles } from '../vars/numFiles';
 import { useFiles } from '../vars/files';
 import { useAddingFile } from '../vars/addingFile';
 import { getApiUrl, API_CONFIG } from '../config/api';
@@ -12,7 +11,6 @@ import { getApiUrl, API_CONFIG } from '../config/api';
 export default function UploadFile() {
     const { setFiles } = useFiles();
     const { setIsBatch } = useBatch();
-    const { setNumFiles } = useNumFiles();
     const { isAddingFile, setIsAddingFile } = useAddingFile();
 
     // Alert state
@@ -43,7 +41,6 @@ export default function UploadFile() {
             
             if (stagedFiles.length > 1) {
                 setIsBatch(true);
-                setNumFiles(stagedFiles.length);
             }
 
             // Send files to backend

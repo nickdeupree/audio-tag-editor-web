@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { BatchProvider } from "./vars/isBatch";
-import { NumFilesProvider } from './vars/numFiles';
 import { AppThemeProvider } from "./lib/ThemeProvider";
 import { FilesProvider } from "./vars/files";
 import { CurrentFileIndexProvider } from "./vars/currentFileIndex";
@@ -40,17 +39,15 @@ export default function RootLayout({
           <ThemeSync />
           <AppThemeProvider>
             <BatchProvider>
-              <NumFilesProvider>
-                <FilesProvider>
-                  <CurrentFileIndexProvider>
-                    <AllFilesMetadataProvider>
-                      <AddingFileProvider>
-                        {children}
-                      </AddingFileProvider>
-                    </AllFilesMetadataProvider>
-                  </CurrentFileIndexProvider>
-                </FilesProvider>
-              </NumFilesProvider>
+              <FilesProvider>
+                <CurrentFileIndexProvider>
+                  <AllFilesMetadataProvider>
+                    <AddingFileProvider>
+                      {children}
+                    </AddingFileProvider>
+                  </AllFilesMetadataProvider>
+                </CurrentFileIndexProvider>
+              </FilesProvider>
             </BatchProvider>
           </AppThemeProvider>
         </ThemeContextProvider>
