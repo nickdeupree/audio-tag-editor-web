@@ -44,10 +44,13 @@ class DownloadService:
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': output_format,
                 'preferredquality': '192',
+            }, {
+                'key': 'EmbedThumbnail',
+                'already_have_thumbnail': False,
             }],
             'outtmpl': output_path,
             'extractflat': False,
-            'writethumbnail': False,
+            'writethumbnail': True,  # Enable thumbnail download
             'writeinfojson': False,
             'noplaylist': True,  # Force single video download, ignore playlists
         }
