@@ -8,6 +8,7 @@ import os
 import re
 from typing import Optional, Dict, Any
 from utils.debug import debug
+import shutil
 
 class DownloadService:
     """Service class for downloading audio from various platforms."""
@@ -46,8 +47,10 @@ class DownloadService:
         debug.print(f"Generated temp filename: {temp_filename}")
         debug.print(f"Output path template: {output_path}")
         
-        cookies_path = '/etc/secrets/cookies1.txt'
-        
+        shutil.copyfile('/etc/secrets/cookies1.txt', '/tmp/cookies1.txt')
+        cookies_path = '/tmp/cookies1.txt'
+
+
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
