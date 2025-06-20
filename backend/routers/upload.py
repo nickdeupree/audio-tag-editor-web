@@ -14,7 +14,6 @@ import os
 import logging
 
 router = APIRouter(prefix="/upload")
-debug.enable()
 
 # Initialize services
 unified_file_service = UnifiedFileService()
