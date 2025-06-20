@@ -6,13 +6,15 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse, FileResponse
 from services.unified_file_service import UnifiedFileService
 from services.tag_update_service import TagUpdateService
-from app.services.download_service import DownloadService
+from services.downloader_service import DownloadService
 from models.responses import AudioUploadResponse
+from utils.debug import debug
 from typing import List
 import os
 import logging
 
 router = APIRouter(prefix="/upload")
+debug.enable()
 
 # Initialize services
 unified_file_service = UnifiedFileService()
@@ -103,18 +105,18 @@ async def get_all_files():
     """Get all files in the workspace."""
     return unified_file_service.get_all_files()
 
-@router.get("/download/{index}")
-async def download_file_by_index(index: int):
-    """Download a specific file by its index."""
-    file_info = unified_file_service.get_file_by_index(index)
+@router.get("/download/by-filename/{filename}")
+async def download_file_by_filename(filename: str):
+    """Download a specific file by its original filename."""
+    file_info = unified_file_service.get_file_by_filename(unified_file_service._extract_original_filename(filename))
     
     if not file_info:
-        raise HTTPException(status_code=404, detail=f"File at index {index} not found")
+        raise HTTPException(status_code=404, detail=f"File '{filename}' not found")
     
     file_path = file_info['full_path']
     original_filename = file_info['filename']
-    print("DEBUG: file_path:", file_path)
-    print("DEBUG: original_filename:", original_filename)
+    debug.print(f"file_path: {file_path}")
+    debug.print(f"original_filename: {original_filename}")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
     
@@ -127,7 +129,23 @@ async def download_file_by_index(index: int):
 @router.get("/download-latest")
 async def download_latest_file():
     """Download the most recently added file."""
-    return await download_file_by_index(0)  # Index 0 is the most recent
+    # Get the first file (index 0) which is the most recent
+    file_info = unified_file_service.get_file_by_index(0)
+    
+    if not file_info:
+        raise HTTPException(status_code=404, detail="No files available for download")
+    
+    file_path = file_info['full_path']
+    original_filename = file_info['filename']
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    return FileResponse(
+        path=file_path,
+        filename=original_filename,
+        media_type='application/octet-stream'
+    )
 
 @router.get("/download-all")
 async def download_all_files():
@@ -155,6 +173,41 @@ async def download_selected_files(indices: List[int]):
 async def debug_workspace():
     """Get debug information about the workspace."""
     return unified_file_service.get_workspace_debug_info()
+
+@router.get("/debug/status")
+async def get_debug_status():
+    """Get current debug mode status."""
+    return JSONResponse(content={
+        "debug_enabled": debug.is_enabled(),
+        "message": f"Debug mode is {'enabled' if debug.is_enabled() else 'disabled'}"
+    })
+
+@router.post("/debug/toggle")
+async def toggle_debug_mode():
+    """Toggle debug mode on/off."""
+    new_state = debug.toggle()
+    return JSONResponse(content={
+        "debug_enabled": new_state,
+        "message": f"Debug mode {'enabled' if new_state else 'disabled'}"
+    })
+
+@router.post("/debug/enable")
+async def enable_debug_mode():
+    """Enable debug mode."""
+    debug.enable()
+    return JSONResponse(content={
+        "debug_enabled": True,
+        "message": "Debug mode enabled"
+    })
+
+@router.post("/debug/disable")
+async def disable_debug_mode():
+    """Disable debug mode."""
+    debug.disable()
+    return JSONResponse(content={
+        "debug_enabled": False,
+        "message": "Debug mode disabled"
+    })
 
 @router.get("/test-download")
 async def test_download_service():
@@ -188,25 +241,8 @@ async def download_soundcloud_audio(url: str = Form(...)):
     """Legacy endpoint - use /add/soundcloud instead."""
     return await add_soundcloud_audio(url)
 
-@router.get("/download/{filename}")
-async def download_file_by_name(filename: str):
-    """Legacy endpoint - downloads file by stored filename."""
-    file_path = unified_file_service.get_file_by_stored_filename(filename)
-    
-    if not file_path or not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
-    
-    # Extract original filename
-    original_filename = unified_file_service._extract_original_filename(filename)
-    
-    return FileResponse(
-        path=file_path,
-        filename=original_filename,
-        media_type='application/octet-stream'
-    )
-
 @router.get("/download/{stored_filename}")
-async def download_file(stored_filename: str):
+async def download_file_by_stored_filename(stored_filename: str):
     """Download a file by its stored filename."""
     logger.info(f"File downloaded: {stored_filename}")
     file_path = unified_file_service.get_file_by_stored_filename(stored_filename)

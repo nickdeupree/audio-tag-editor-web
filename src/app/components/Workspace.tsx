@@ -7,10 +7,16 @@ import OptionsColumn from './OptionsColumn';
 import InputOption from './InputOption';
 import TagEditorSpace from './TagEditorSpace';
 import { useFiles } from '../vars/files';
-import { useAllFilesMetadata, FileMetadata } from '../vars/allFilesMetadata';
+import { useAllFilesMetadata, FileMetadata, AudioMetadata } from '../vars/allFilesMetadata';
 import { useCurrentFileIndex } from '../vars/currentFileIndex';
 import { useAddingFile } from '../vars/addingFile';
 import { getApiUrl, API_CONFIG } from '../config/api';
+
+interface UploadedFileData {
+    filename: string;
+    stored_filename: string;
+    metadata: AudioMetadata;
+}
 
 export default function Workspace() {
     const { setFiles } = useFiles();
@@ -53,7 +59,7 @@ export default function Workspace() {
             if (all_files_metadata && Array.isArray(all_files_metadata) && all_files_metadata.length > 0) {
                 // Handle multiple files (file upload)
                 const currentAllFiles = allFilesMetadata; // Capture current state for calculating new index
-                const newFiles: FileMetadata[] = all_files_metadata.map((fileData: any) => ({
+                const newFiles: FileMetadata[] = all_files_metadata.map((fileData: UploadedFileData) => ({
                     filename: fileData.filename,
                     storedFilename: fileData.stored_filename, 
                     metadata: fileData.metadata,

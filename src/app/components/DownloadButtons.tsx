@@ -1,52 +1,49 @@
 import React from 'react';
-import { Box, Button } from '@mui/material';
+import { Button } from '@mui/material';
 import { SIZES } from '../constants/sizes';
-import CustomAlert from './CustomAlert';
 import { getApiUrl, API_CONFIG } from '../config/api';
 
 interface DownloadButtonsProps {
-    currentIndex?: number;
+    currentFilename?: string;
     metadata?: { title?: string; artist?: string; album?: string; };
+    isSaving?: boolean;
+    lastSaveTime?: Date | null;
+    hasPendingChanges?: boolean;
 }
 
-export default function DownloadButtons({ currentIndex, metadata }: DownloadButtonsProps) {
+export default function DownloadButtons({ currentFilename, metadata, isSaving, lastSaveTime, hasPendingChanges }: DownloadButtonsProps) {
     // Alert state
     const [alertMessage, setAlertMessage] = React.useState<string>('');
     const [alertSeverity, setAlertSeverity] = React.useState<'error' | 'warning' | 'info' | 'success'>('info');
     const [showAlert, setShowAlert] = React.useState<boolean>(false);
     
     const handleDownload = async () => {
+        // Prevent download while saving or if there are pending changes
+        if (isSaving || hasPendingChanges) {
+            const message = isSaving 
+                ? 'Please wait for the file to finish saving before downloading.'
+                : 'You have unsaved changes. Please wait for auto-save to complete.';
+            setAlertMessage(message);
+            setAlertSeverity('warning');
+            setShowAlert(true);
+            return;
+        }
+
         try {
-            // Debug: Check what files are available
-            console.log('Current index for download:', currentIndex);
-            try {
-                const filesResponse = await fetch(`${getApiUrl(API_CONFIG.ENDPOINTS.DOWNLOAD_BY_INDEX).replace('/download', '/files/all')}`);
-                if (filesResponse.ok) {
-                    const filesData = await filesResponse.json();
-                    console.log('Available files:', filesData);
-                    console.log('Total files:', filesData?.files?.length || 0);
-                    
-                    // Check if the requested index exists
-                    if (currentIndex !== undefined && currentIndex >= filesData?.files?.length) {
-                        throw new Error(`File index ${currentIndex} not found. Only ${filesData?.files?.length} files available.`);
-                    }
-                } else {
-                    console.warn('Could not fetch files list:', filesResponse.status);
-                }
-            } catch (debugError) {
-                console.warn('Debug files fetch error:', debugError);
-            }
+            // Debug: Check what files are available and validate filename
+            console.log('Current filename for download:', currentFilename);
             
-            let downloadUrl;
-            if (currentIndex !== undefined && currentIndex >= 0) {
-                // Download specific file by index using direct backend call
-                downloadUrl = `${getApiUrl(API_CONFIG.ENDPOINTS.DOWNLOAD_BY_INDEX)}/${currentIndex}`;
-                console.log('Download URL:', downloadUrl);
-            } else {
-                // Fallback to latest file
-                downloadUrl = getApiUrl(API_CONFIG.ENDPOINTS.DOWNLOAD_LATEST);
-                console.log('Fallback download URL:', downloadUrl);
+            if (!currentFilename) {
+                setAlertMessage('No file selected for download');
+                setAlertSeverity('error');
+                setShowAlert(true);
+                return;
             }
+
+            // Encode the filename for URL safety
+            const encodedFilename = encodeURIComponent(currentFilename);
+            const downloadUrl = `${getApiUrl(API_CONFIG.ENDPOINTS.DOWNLOAD_BY_FILENAME)}/${encodedFilename}`;
+            console.log('Download URL:', downloadUrl);
             
             const response = await fetch(downloadUrl);
             
@@ -89,6 +86,17 @@ export default function DownloadButtons({ currentIndex, metadata }: DownloadButt
     };
     
     const handleDownloadAll = async () => {
+        // Prevent download while saving or if there are pending changes
+        if (isSaving || hasPendingChanges) {
+            const message = isSaving 
+                ? 'Please wait for the file to finish saving before downloading.'
+                : 'You have unsaved changes. Please wait for auto-save to complete.';
+            setAlertMessage(message);
+            setAlertSeverity('warning');
+            setShowAlert(true);
+            return;
+        }
+
         try {
             const downloadUrl = getApiUrl(API_CONFIG.ENDPOINTS.DOWNLOAD_ALL);
             
@@ -117,33 +125,33 @@ export default function DownloadButtons({ currentIndex, metadata }: DownloadButt
             setShowAlert(true);
         }
     };      return (
-        <>
             <div className="flex flex-row justify-center mt-6 gap-4">
                 <Button 
                     variant="contained" 
                     size="large" 
                     onClick={handleDownload}
-                    sx={{ width: `${SIZES.buttonSize[0]}rem`, height: `${SIZES.buttonSize[1]}rem` }}
+                    disabled={isSaving || hasPendingChanges}
+                    sx={{ 
+                        width: `${SIZES.buttonSize[0]}rem`, 
+                        height: `${SIZES.buttonSize[1]}rem`,
+                        opacity: (isSaving || hasPendingChanges) ? 0.6 : 1
+                    }}
                 >
-                    Download
+                    {(isSaving || hasPendingChanges) ? 'Saving...' : 'Download'}
                 </Button>
                 <Button 
                     variant="contained" 
                     size="medium" 
                     onClick={handleDownloadAll}
-                    sx={{ width: `${SIZES.buttonSize[0]}rem`, height: `${SIZES.buttonSize[1]}rem` }}
+                    disabled={isSaving || hasPendingChanges}
+                    sx={{ 
+                        width: `${SIZES.buttonSize[0]}rem`, 
+                        height: `${SIZES.buttonSize[1]}rem`,
+                        opacity: (isSaving || hasPendingChanges) ? 0.6 : 1
+                    }}
                 >
-                    Download All
+                    {(isSaving || hasPendingChanges) ? 'Saving...' : 'Download All'}
                 </Button>
-            </div>            {showAlert && (
-                <Box sx={{ mt: 2 }}>
-                    <CustomAlert 
-                        message={alertMessage} 
-                        severity={alertSeverity}
-                        onClose={() => setShowAlert(false)}
-                    />
-                </Box>
-            )}
-        </>
+            </div>
     );
 }

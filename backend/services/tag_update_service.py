@@ -7,7 +7,7 @@ import tempfile
 import os
 from typing import Dict, Any
 from fastapi import UploadFile, HTTPException
-from app.services.audio_service import AudioService
+from services.audio_service import AudioService
 from models.responses import AudioMetadata
 
 

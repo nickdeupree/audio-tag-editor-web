@@ -24,3 +24,6 @@ CORS_HEADERS = ["*"]
 # Server settings
 HOST = "0.0.0.0"
 PORT = 8000
+
+# Debug settings
+DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"

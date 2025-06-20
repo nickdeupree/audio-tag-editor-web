@@ -47,3 +47,6 @@ __pycache__/
 venv/
 
 VERCEL_PAYLOAD_WORKAROUND
+
+# cookies
+backend/services/yt-cookies/

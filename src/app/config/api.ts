@@ -27,7 +27,7 @@ export const API_CONFIG = {
     DOWNLOAD_YOUTUBE: '/api/upload/download/youtube',
     DOWNLOAD_SOUNDCLOUD: '/api/upload/download/soundcloud',
     DOWNLOAD_FILE: '/api/upload/download',
-    DOWNLOAD_BY_INDEX: '/upload/download', // Direct backend call for download by index
+    DOWNLOAD_BY_FILENAME: '/api/upload/download/by-filename', // New filename-based download
     DOWNLOAD_LATEST: '/api/upload/download-latest',
     DOWNLOAD_ALL: '/api/upload/download-all',
     CLEAR_CACHE: '/api/upload/clear-cache',
@@ -36,8 +36,8 @@ export const API_CONFIG = {
 };
 
 export const getApiUrl = (endpoint: string) => {
-  // For file uploads and downloads, use direct backend URL to bypass Vercel payload limits
-  if (endpoint === API_CONFIG.ENDPOINTS.UPLOAD || endpoint === API_CONFIG.ENDPOINTS.DOWNLOAD_BY_INDEX) {
+  // For file uploads, use direct backend URL to bypass Vercel payload limits
+  if (endpoint === API_CONFIG.ENDPOINTS.UPLOAD) {
     return `${API_CONFIG.DIRECT_BACKEND_URL}${endpoint}`;
   }
   // For other operations, use Next.js API routes

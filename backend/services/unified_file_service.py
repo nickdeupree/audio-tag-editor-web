@@ -9,8 +9,8 @@ import zipfile
 import tempfile
 from typing import List, Dict, Any, Optional
 from fastapi import UploadFile, HTTPException
-from app.services.audio_service import AudioService
-from app.services.download_service import DownloadService
+from services.audio_service import AudioService
+from services.downloader_service import DownloadService
 from models.responses import AudioMetadata, AudioUploadResponse
 
 
@@ -244,22 +244,13 @@ class UnifiedFileService:
             raise HTTPException(status_code=404, detail=f"File not found: {stored_filename}")
         
         try:
-            # Create updated filename
-            updated_filename = self._generate_unique_filename(stored_filename, "updated")
-            updated_file_path = os.path.join(self.WORKSPACE_DIR, updated_filename)
-            
-            # Copy original file
-            shutil.copy2(file_path, updated_file_path)
-            
-            # Update metadata on the copy
-            success = self.audio_service.update_metadata(updated_file_path, metadata)
+            # Update metadata directly on the existing file
+            success = self.audio_service.update_metadata(file_path, metadata)
             
             if success:
-                return updated_filename
+                # Return the same filename since we updated in place
+                return stored_filename
             else:
-                # Clean up failed update
-                if os.path.exists(updated_file_path):
-                    os.unlink(updated_file_path)
                 raise HTTPException(status_code=500, detail="Failed to update metadata")
                 
         except Exception as e:
@@ -300,7 +291,15 @@ class UnifiedFileService:
                         platform = 'soundcloud'
                         file_type = 'downloaded'
                     elif file.startswith("updated_"):
-                        platform = 'upload'  # Updated files keep original platform context
+                        # Determine original platform from nested filename
+                        if "upload_" in file:
+                            platform = 'upload'
+                        elif "youtube_" in file:
+                            platform = 'youtube'
+                        elif "soundcloud_" in file:
+                            platform = 'soundcloud'
+                        else:
+                            platform = 'upload'  # Default fallback
                         file_type = 'updated'
                     
                     original_filename = self._extract_original_filename(file)
@@ -316,52 +315,7 @@ class UnifiedFileService:
                         'size': os.path.getsize(file_path)
                     }
                     all_files.append(file_info)
-            
-            # Filter out original files that have updated versions
-            # Create a map of original files to their updated versions
-            updated_files_map = {}
-            for file_info in all_files:
-                if file_info['type'] == 'updated':
-                    # Extract the original filename pattern from updated file
-                    stored_filename = file_info['stored_filename']
-                    if stored_filename.startswith('updated_'):
-                        # Format: updated_timestamp_original_pattern
-                        # Find the original pattern by removing the updated_ prefix and timestamp
-                        parts = stored_filename.split('_', 2)
-                        if len(parts) >= 3:
-                            # The original pattern is everything after the second underscore
-                            original_pattern = parts[2]
-                            updated_files_map[original_pattern] = file_info
-            
-            # Filter out original files that have updated versions
-            filtered_files = []
-            for file_info in all_files:
-                if file_info['type'] in ['uploaded', 'downloaded']:
-                    # Check if this file has an updated version
-                    original_filename = file_info['stored_filename']
-                    if original_filename in updated_files_map:
-                        # Skip this original file, we'll use the updated version
-                        continue
-                filtered_files.append(file_info)
-            
-            # Sort by creation timestamp embedded in filename (oldest first to maintain add order)
-            # Extract timestamp from filename for proper ordering
-            def get_timestamp_from_filename(file_info):
-                filename = file_info['stored_filename']
-                # Extract timestamp from format: prefix_timestamp_originalname.ext
-                if "_" in filename:
-                    parts = filename.split("_", 2)
-                    if len(parts) >= 2:
-                        try:
-                            return int(parts[1])  # timestamp is the second part
-                        except ValueError:
-                            pass
-                # Fallback to modification time if timestamp can't be extracted
-                return file_info['mtime']
-            
-            filtered_files.sort(key=get_timestamp_from_filename)
-            all_files = filtered_files
-            
+
             return {
                 "success": True,
                 "files": all_files,
@@ -373,11 +327,28 @@ class UnifiedFileService:
             
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error listing files: {str(e)}")
+            
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error listing files: {str(e)}")
+    
+    def get_file_by_filename(self, filename: str) -> Optional[Dict[str, Any]]:
+        """Get a specific file by its original filename."""
+        files_data = self.get_all_files()
+        files = files_data.get('files', [])
+        print(f"files: {files}")
+        # Search for file by original filename
+        for file in files:
+            if file['filename'] == filename:
+                return file
+        return None
     
     def get_file_by_index(self, index: int) -> Optional[Dict[str, Any]]:
         """Get a specific file by its index in the sorted list."""
         files_data = self.get_all_files()
         files = files_data.get('files', [])
+        for file in files:
+            print(file['filename'])
+            print(files.index(file))
         
         if 0 <= index < len(files):
             return files[index]

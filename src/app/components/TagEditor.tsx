@@ -45,7 +45,10 @@ export default function TagEditor() {
 
     // Auto-save related state and refs
     const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const isAutoSavingRef = useRef<boolean>(false);    // Get current file metadata from allFilesMetadata
+    const isAutoSavingRef = useRef<boolean>(false);
+    const [isSaving, setIsSaving] = useState<boolean>(false);
+    const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+    const [hasPendingChanges, setHasPendingChanges] = useState<boolean>(false);    // Get current file metadata from allFilesMetadata
     const currentFileMetadata = allFilesMetadata[currentIndex];
 
     // Load metadata when component mounts or when allFilesMetadata changes
@@ -175,8 +178,8 @@ export default function TagEditor() {
                                 
                                 setCoverArtUrl(result);
                                 
-                                // Trigger auto-save for cover art
-                                debouncedAutoSave(newMetadata);
+                                // Trigger auto-save for cover art with longer delay
+                                debouncedAutoSave(newMetadata, true);
                             }
                         };
                         reader.readAsDataURL(blob);
@@ -207,6 +210,7 @@ export default function TagEditor() {
         }
 
         isAutoSavingRef.current = true;
+        setIsSaving(true);
         
         try {
             const formData = new FormData();
@@ -270,6 +274,17 @@ export default function TagEditor() {
 
             if (result.success) {
                 console.log('Metadata auto-saved successfully');
+                setLastSaveTime(new Date());
+                setHasPendingChanges(false);
+
+                // setAlertMessage('Metadata auto-saved successfully');
+                // setAlertSeverity('success');
+                // setShowAlert(true);
+
+                // setTimeout(() => {
+                //     setShowAlert(false);
+                // }, 3000);
+                
                 // Store the updated filename for download
                 if (result.updated_filename) {
                     setUpdatedFilename(result.updated_filename);
@@ -281,23 +296,31 @@ export default function TagEditor() {
             }
         } catch (error) {
             console.error('Error auto-saving metadata:', error);
+            setHasPendingChanges(false);
             // Don't show alert for auto-save errors to avoid interrupting user workflow
         } finally {
             isAutoSavingRef.current = false;
+            setIsSaving(false);
         }
     }, [files, currentIndex, allFilesMetadata, setUpdatedFilenameInContext]);
 
     // Debounced auto-save function
-    const debouncedAutoSave = useCallback((metadataToSave: AudioMetadata) => {
+    const debouncedAutoSave = useCallback((metadataToSave: AudioMetadata, isCoverArtChange = false) => {
         // Clear existing timeout
         if (autoSaveTimeoutRef.current) {
             clearTimeout(autoSaveTimeoutRef.current);
         }
 
-        // Set new timeout for auto-save (1 second delay)
+        // Set pending changes state
+        setHasPendingChanges(true);
+
+        // Use longer delay for cover art changes (3 seconds) vs text changes (1 second)
+        const delay = isCoverArtChange ? 3000 : 1000;
+
+        // Set new timeout for auto-save
         autoSaveTimeoutRef.current = setTimeout(() => {
             autoSave(metadataToSave);
-        }, 1000);
+        }, delay);
     }, [autoSave]);
 
     // Clean up timeout on unmount
@@ -356,8 +379,8 @@ export default function TagEditor() {
                                     cover_art_mime_type: undefined
                                 });
                                 
-                                // Trigger auto-save for cover art removal
-                                debouncedAutoSave(newMetadata);
+                                // Trigger auto-save for cover art removal with longer delay
+                                debouncedAutoSave(newMetadata, true);
                             }}
                             sx={{ mt: 1, fontSize: '0.75rem' }}
                         >
@@ -467,7 +490,13 @@ export default function TagEditor() {
                             </div>
                         )}
                     </Box>                )
-                }                <DownloadButtons currentIndex={currentIndex} metadata={metadata} />
+                }                <DownloadButtons 
+                    currentFilename={currentFilename} 
+                    metadata={metadata} 
+                    isSaving={isSaving}
+                    lastSaveTime={lastSaveTime}
+                    hasPendingChanges={hasPendingChanges}
+                />
             </div>{showAlert && (
                 <Box sx={{ mt: 2 }}>
                     <CustomAlert 

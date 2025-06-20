@@ -1,14 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ filename: string }> }
+) {
   try {
+    const { filename } = await params;
+
     // Forward the request to the Python backend
     const pythonBackendUrl = process.env.PYTHON_BACKEND_URL || 
       (process.env.NODE_ENV === 'production' 
         ? 'https://audio-tag-editor-web.onrender.com' 
         : 'http://localhost:8000');
     
-    const response = await fetch(`${pythonBackendUrl}/upload/download-latest`, {
+    const response = await fetch(`${pythonBackendUrl}/upload/download/by-filename/${filename}`, {
       method: 'GET',
     });
 
@@ -17,7 +22,7 @@ export async function GET() {
       console.error('Python backend error:', response.status, errorText);
       
       return NextResponse.json(
-        { error: 'No files available for download' }, 
+        { error: 'File not found' }, 
         { status: response.status }
       );
     }
@@ -41,7 +46,7 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error('Error downloading latest file:', error);
+    console.error('Error downloading file by filename:', error);
     return NextResponse.json(
       { error: 'Internal server error' }, 
       { status: 500 }
