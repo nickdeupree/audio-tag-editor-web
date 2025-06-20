@@ -49,7 +49,7 @@ class DownloadService:
         cookies_path = '/etc/secrets/cookies1.txt'
         if not os.path.exists(cookies_path):
             debug.print(f"Cookies file not found at {cookies_path}, using default path")
-            cookies_path = os.path.join(os.path.dirname(__file__), 'yt-cookies', 'cookies.txt')        # Configure yt-dlp options
+            cookies_path = os.path.join(os.path.dirname(__file__), 'yt-cookies', 'cookies1.txt')        # Configure yt-dlp options
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
