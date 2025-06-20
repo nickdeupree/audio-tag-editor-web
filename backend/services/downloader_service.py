@@ -65,7 +65,7 @@ class DownloadService:
             'writethumbnail': True,
             'writeinfojson': False,
             'noplaylist': True,
-            'cookies': cookies_path,
+            'cookies_from_browser': ['chrome'],
         }
         
         debug.print(f"yt-dlp options configured: {ydl_opts}")
