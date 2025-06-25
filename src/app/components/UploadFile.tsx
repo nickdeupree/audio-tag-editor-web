@@ -39,9 +39,11 @@ export default function UploadFile() {
             
             setFiles(fileList);
             
-            if (stagedFiles.length > 1) {
-                setIsBatch(true);
-            }
+            // Auto set batch. I like it disabled
+            
+            // if (stagedFiles.length > 1) {
+            //     setIsBatch(true);
+            // }
 
             // Send files to backend
             try {

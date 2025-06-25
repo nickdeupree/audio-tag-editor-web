@@ -242,23 +242,9 @@ export default function TagEditor() {
                     method: 'POST',
                     body: formData
                 });
-            } else {
-                // This is a regular uploaded file - use regular update endpoint
-                const currentFile = files && files.length > currentIndex ? files[currentIndex] : null;
-                if (!currentFile) {
-                    return;
-                }
-                
-                formData.append('file', currentFile);
-                apiEndpoint = API_CONFIG.ENDPOINTS.UPDATE_TAGS;
-                
-                response = await fetch(getApiUrl(apiEndpoint), {
-                    method: 'POST',
-                    body: formData
-                });
             }
-            
-            if (!response.ok) {
+
+            if (response && !response.ok) {
                 // Try to get more detailed error information
                 let errorMessage = `Error: ${response.status} ${response.statusText}`;
                 try {
@@ -270,6 +256,10 @@ export default function TagEditor() {
                 throw new Error(errorMessage);
             }
             
+            if (!response) {
+                setHasPendingChanges(false);
+                return;
+            }
             const result = await response.json();
 
             if (result.success) {

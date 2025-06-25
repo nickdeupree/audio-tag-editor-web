@@ -48,22 +48,6 @@ async def add_soundcloud_audio(url: str = Form(...)):
     """Download SoundCloud audio and add to workspace."""
     return await unified_file_service.add_soundcloud_audio(url)
 
-@router.post("/update-tags")
-async def update_audio_tags(
-    file: UploadFile = File(...), 
-    metadata: str = Form(...)
-):
-    """Update audio file tags with new metadata."""
-    logger.debug(f"update_audio_tags called. Uploaded filename: {file.filename}")
-    logger.debug(f"Received metadata for update: {metadata}")
-    try:
-        result = await tag_update_service.update_file_tags(file, metadata)
-        logger.debug(f"Tag update result: {result}")
-        return JSONResponse(content=result)
-    except Exception as e:
-        logger.error(f"Error in update_audio_tags for file {file.filename}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error updating file tags: {str(e)}")
-
 @router.post("/update-tags-workspace/{stored_filename}")
 async def update_tags_workspace(
     stored_filename: str,
@@ -116,27 +100,6 @@ async def download_file_by_filename(filename: str):
     original_filename = file_info['filename']
     debug.print(f"file_path: {file_path}")
     debug.print(f"original_filename: {original_filename}")
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found on disk")
-    
-    return FileResponse(
-        path=file_path,
-        filename=original_filename,
-        media_type='application/octet-stream'
-    )
-
-@router.get("/download-latest")
-async def download_latest_file():
-    """Download the most recently added file."""
-    # Get the first file (index 0) which is the most recent
-    file_info = unified_file_service.get_file_by_index(0)
-    
-    if not file_info:
-        raise HTTPException(status_code=404, detail="No files available for download")
-    
-    file_path = file_info['full_path']
-    original_filename = file_info['filename']
-    
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
     
@@ -228,32 +191,3 @@ async def test_download_service():
                 "message": f"Download service test failed: {str(e)}"
             }
         )
-
-# Legacy endpoints for backward compatibility
-@router.post("/download/youtube")
-async def download_youtube_audio(url: str = Form(...)):
-    """Legacy endpoint - use /add/youtube instead."""
-    return await add_youtube_audio(url)
-
-@router.post("/download/soundcloud")
-async def download_soundcloud_audio(url: str = Form(...)):
-    """Legacy endpoint - use /add/soundcloud instead."""
-    return await add_soundcloud_audio(url)
-
-@router.get("/download/{stored_filename}")
-async def download_file_by_stored_filename(stored_filename: str):
-    """Download a file by its stored filename."""
-    logger.info(f"File downloaded: {stored_filename}")
-    file_path = unified_file_service.get_file_by_stored_filename(stored_filename)
-    
-    if not file_path or not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"File not found: {stored_filename}")
-    
-    # Extract original filename
-    original_filename = unified_file_service._extract_original_filename(stored_filename)
-    
-    return FileResponse(
-        path=file_path,
-        filename=original_filename,
-        media_type='application/octet-stream'
-    )

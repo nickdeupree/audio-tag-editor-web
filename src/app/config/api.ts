@@ -21,14 +21,11 @@ export const API_CONFIG = {
   DIRECT_BACKEND_URL: getDirectBackendUrl(),
   ENDPOINTS: {
     UPLOAD: '/upload/',
-    UPDATE_TAGS: '/api/upload/update-tags',
     UPDATE_WORKSPACE_TAGS: '/api/upload/update-workspace-tags',
     COVER_ART: '/api/upload/cover-art',
     DOWNLOAD_YOUTUBE: '/api/upload/download/youtube',
     DOWNLOAD_SOUNDCLOUD: '/api/upload/download/soundcloud',
-    DOWNLOAD_FILE: '/api/upload/download',
-    DOWNLOAD_BY_FILENAME: '/api/upload/download/by-filename', // New filename-based download
-    DOWNLOAD_LATEST: '/api/upload/download-latest',
+    DOWNLOAD_BY_FILENAME: '/api/upload/download/by-filename',
     DOWNLOAD_ALL: '/api/upload/download-all',
     CLEAR_CACHE: '/api/upload/clear-cache',
     FILES_ALL: '/api/upload/files/all',
